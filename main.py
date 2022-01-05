@@ -55,19 +55,16 @@ class checkers():
         self.grid_content = copy_state
         state.current_state = copy_state
         print(agent_move)
-        updatedLocation = state.updateLocation(agent_move[0], agent_move[1])
-        if updatedLocation:
-            self.grid_content = state.current_state
+        state.updateLocation(agent_move[0], agent_move[1])
+        self.grid_content = state.current_state
 
     def alphaBeta(self, state):
-        self.depthLimit = (len(state.human_locations) - len(state.agent_locations)) + 2
-        self.currentDepth = 0
-        self.maxDepth = 0
+        self.depthLimit = abs((len(state.agent_locations) - len(state.human_locations))) + 2
         self.numNodes = 0
         self.maxPruning = 0
         self.minPruning = 0
-        self.typeMove = ""
-        self.bestMove = []
+        self.agent_move_type = ""
+        self.agent_move = []
 
         v = self.maxValue(state, -math.inf, math.inf, self.depthLimit)
 
@@ -76,7 +73,7 @@ class checkers():
         print("max pruning: ", self.maxPruning)
         print("min pruning: ", self.minPruning)
 
-        return self.typeMove, self.bestMove
+        return self.agent_move_type, self.agent_move
 
     def maxValue(self, state, alpha, beta, depthLimit):
         if state.checkTerminal():
@@ -84,36 +81,29 @@ class checkers():
         if depthLimit == 0:
             return state.computeEvaluation()
 
-        self.currentDepth += 1
-        self.maxDepth = max(self.maxDepth, self.currentDepth)
         self.numNodes += 1
 
         v = -math.inf
         typeMove, possibleMoves = state.getStates("AGENT")
         for a in possibleMoves:
             state.updatePieces()
+            state.sortPieces()
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(a[0], a[1])
-            if state.checkMoves("HUMAN"):
-                next = self.minValue(state, alpha, beta, depthLimit - 1)
-            else:
-                next = self.maxValue(state, alpha, beta, depthLimit - 1)
-            if next > v:
-                v = next
-                if depthLimit == self.depthLimit:
-                    self.bestMove = a
-                    self.typeMove = typeMove
+            v2 = self.minValue(state, alpha, beta, depthLimit - 1)
             state.current_state = copy_state
-            state.updatePieces()
-
+            state.sortPieces()
+            if v2 > v:
+                v = v2
+                alpha = max(alpha, v)
+                if depthLimit == self.depthLimit:
+                    self.agent_move = a
+                    self.agent_move_type = typeMove
             if v >= beta:
                 self.maxPruning += 1
-                self.currentDepth -= 1
                 return v
-            alpha = max(alpha, v)
 
-            self.currentDepth -= 1
-            return v
+        return v
 
     def minValue(self, state, alpha, beta, depthLimit):
         if state.checkTerminal():
@@ -121,33 +111,26 @@ class checkers():
         if depthLimit == 0:
             return state.computeEvaluation()
 
-        self.currentDepth += 1
-        self.maxDepth = max(self.maxDepth, self.currentDepth)
         self.numNodes += 1
 
         v = math.inf
         typeMove, possibleMoves = state.getStates("HUMAN")
         for a in possibleMoves:
             state.updatePieces()
+            state.sortPieces()
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(a[0], a[1])
-            if state.checkMoves("AGENT"):
-                next = self.maxValue(state, alpha, beta, depthLimit - 1)
-            else:
-                next = self.minValue(state, alpha, beta, depthLimit - 1)
-            if next < v:
-                v = next
+            v2 = self.maxValue(state, alpha, beta, depthLimit - 1)
             state.current_state = copy_state
-            state.updatePieces()
-
+            state.sortPieces()
+            if v2 < v:
+                v = v2
+                beta = min(beta, v)
             if v <= alpha:
                 self.minPruning += 1
-                self.currentDepth -= 1
                 return v
-            beta = min(beta, v)
 
-            self.currentDepth -= 1
-            return v
+        return v
 
 
 class checkersStates():
@@ -190,11 +173,25 @@ class checkersStates():
                 elif self.current_state[row][col] == "AGENT" or self.current_state[row][col] == "KingA":
                     self.agent_locations.append([row, col])
 
+    def sortPieces(self):
+        self.agent_locations.sort(reverse=True)
+        self.human_locations.sort()
+
     def computeUtility(self):
-        return ((len(self.agent_locations) - len(self.human_locations)) * 500) + len(self.agent_locations) * 50
+        kings = 0
+        men = 0
+        for row in self.current_state:
+            kings += row.count("KingA")
+            men += row.count("AGENT")
+        return ((len(self.agent_locations) - len(self.human_locations)) * 100) + (kings * 50) + (men * 20)
 
     def computeEvaluation(self):
-        return ((len(self.agent_locations) - len(self.human_locations)) * 50) + len(self.agent_locations) * 10
+        kings = 0
+        men = 0
+        for row in self.current_state:
+            kings += row.count("KingA")
+            men += row.count("AGENT")
+        return ((len(self.agent_locations) - len(self.human_locations)) * 50) + (kings * 25) + (men * 10)
 
     def checkTerminal(self):
         if not self.checkMoves("HUMAN") and not self.checkMoves("AGENT"):
@@ -282,22 +279,17 @@ class checkersStates():
             if self.checkValidMove(current, [current[0] + 1, current[1] + 1], self.current_state[current[0]][current[1]]):
                 moveStates.append([current, [[current[0] + 1, current[1] + 1]]])
 
-            captureLocations = []
             if self.checkValidMove(current, [current[0] - 2, current[1] - 2], self.current_state[current[0]][current[1]]):
-                captureLocations.append([current[0] - 2, current[1] - 2])
-                captureStates.append([current, captureLocations])
+                captureStates.append([current, [[current[0] - 2, current[1] - 2]]])
                 self.current_state = copy_state
             if self.checkValidMove(current, [current[0] - 2, current[1] + 2], self.current_state[current[0]][current[1]]):
-                captureLocations.append([current[0] - 2, current[1] + 2])
-                captureStates.append([current, captureLocations])
+                captureStates.append([current, [[current[0] - 2, current[1] + 2]]])
                 self.current_state = copy_state
             if self.checkValidMove(current, [current[0] + 2, current[1] - 2], self.current_state[current[0]][current[1]]):
-                captureLocations.append([current[0] + 2, current[1] - 2])
-                captureStates.append([current, captureLocations])
+                captureStates.append([current, [[current[0] + 2, current[1] - 2]]])
                 self.current_state = copy_state
             if self.checkValidMove(current, [current[0] + 2, current[1] + 2], self.current_state[current[0]][current[1]]):
-                captureLocations.append([current[0] + 2, current[1] + 2])
-                captureStates.append([current, captureLocations])
+                captureStates.append([current, [[current[0] + 2, current[1] + 2]]])
                 self.current_state = copy_state
 
         if len(captureStates) > 0:
