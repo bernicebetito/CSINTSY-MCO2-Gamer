@@ -24,9 +24,39 @@ class SortMoves():
         return ordered
 
 
+class TranspositionTable():
+    def __init__(self):
+        self.moveOrderCache = {}
+        self.indexTable = [[[random.getrandbits(32)] * 2 for _ in range(8)] for _ in range(8)]
+
+    def computeHash(self, board):
+        self.keyHash = 0
+        for x in range(8):
+            for y in range(8):
+                if board[x][y] == "HUMAN" or board[x][y] == "KingH":
+                    self.keyHash ^= self.indexTable[x][y][0]
+                elif board[x][y] == "AGENT" or board[x][y] == "KingA":
+                    self.keyHash ^= self.indexTable[x][y][1]
+        return self.keyHash
+
+    def findIndex(self, position):
+        index = self.indexTable.index(position)
+        return self.keyHash ^ index
+
+    def insertValue(self, key, value, alpha, beta):
+        move_values = {"value": value, "alpha": alpha, "beta": beta}
+        self.moveOrderCache[key] = move_values
+
+    def getValue(self, key):
+        if key in self.moveOrderCache:
+            return self.moveOrderCache[key]
+        return False
+
+
 class checkers():
     def __init__(self):
         self.grid_content = []
+        self.cache = TranspositionTable()
 
     def initializeGrid(self):
         for row in range(8):
@@ -46,6 +76,21 @@ class checkers():
                     else:
                         row_content.append("     ")
             self.grid_content.append(row_content)
+
+    def tempGrid(self):
+        for row in range(8):
+            row_content = []
+            for column in range(8):
+                row_content.append("     ")
+            self.grid_content.append(row_content)
+        self.grid_content[0][4] = "AGENT"
+        self.grid_content[1][3] = "HUMAN"
+        self.grid_content[3][1] = "HUMAN"
+        self.grid_content[3][3] = "HUMAN"
+        self.grid_content[3][5] = "HUMAN"
+        self.grid_content[5][1] = "HUMAN"
+        self.grid_content[5][3] = "HUMAN"
+        self.grid_content[5][5] = "HUMAN"
 
     def gameContinue(self):
         state = checkersStates(self.grid_content)
@@ -91,7 +136,16 @@ class checkers():
         # """
 
     def alphaBeta(self, state):
-        self.depthLimit = abs((len(state.agent_locations) - len(state.human_locations))) + 2
+        human_pieces = 0
+        agent_pieces = 0
+        for row in range(len(self.grid_content)):
+            for col in range(len(self.grid_content[row])):
+                if self.grid_content[row][col] == "HUMAN" or self.grid_content[row][col] == "KingH":
+                    human_pieces += 1
+                elif self.grid_content[row][col] == "AGENT" or self.grid_content[row][col] == "KingA":
+                    agent_pieces += 1
+
+        self.depthLimit = abs((agent_pieces - human_pieces)) + 2
         self.numNodes = 0
         self.maxPruning = 0
         self.minPruning = 0
@@ -182,6 +236,17 @@ class checkers():
             sortMoves.addMove(x, value)
 
         for a in sortMoves.getMoves():
+            # """
+            if hash(a) in self.cache.moveOrderCache:
+                cacheValue = self.cache.getValue(hash(a))
+                if cacheValue["beta"] >= beta:
+                    return cacheValue["beta"]
+                alpha = max(alpha, cacheValue["beta"])
+
+                if cacheValue["alpha"] <= alpha:
+                    return cacheValue["alpha"]
+                beta = min(beta, cacheValue["alpha"])
+            # """
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(a[0], a[1])
             v2 = self.minMoveOrder(state, alpha, beta, depthLimit - 1)
@@ -190,6 +255,7 @@ class checkers():
             if v2 > v:
                 v = v2
                 alpha = max(alpha, v)
+                self.cache.insertValue(hash(a), v, alpha, beta)
                 if depthLimit == self.depthLimit:
                     self.agent_move = a
                     self.agent_move_type = typeMove
@@ -222,6 +288,17 @@ class checkers():
             sortMoves.addMove(x, value)
 
         for a in sortMoves.getMoves():
+            # """
+            if hash(a) in self.cache.moveOrderCache:
+                cacheValue = self.cache.getValue(hash(a))
+                if cacheValue["beta"] >= beta:
+                    return cacheValue["beta"]
+                alpha = max(alpha, cacheValue["beta"])
+
+                if cacheValue["alpha"] <= alpha:
+                    return cacheValue["alpha"]
+                beta = min(beta, cacheValue["alpha"])
+            # """
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(a[0], a[1])
             v2 = self.maxMoveOrder(state, alpha, beta, depthLimit - 1)
@@ -418,16 +495,16 @@ class checkersStates():
 
         for current in player_locations:
             if self.checkValidMove(current, [current[0] - 1, current[1] - 1], self.current_state[current[0]][current[1]]):
-                moveStates.append([current, [[current[0] - 1, current[1] - 1]]])
+                moveStates.append([tuple(current), [(current[0] - 1, current[1] - 1)]])
             if self.checkValidMove(current, [current[0] - 1, current[1] + 1], self.current_state[current[0]][current[1]]):
-                moveStates.append([current, [[current[0] - 1, current[1] + 1]]])
+                moveStates.append([tuple(current), [(current[0] - 1, current[1] + 1)]])
             if self.checkValidMove(current, [current[0] + 1, current[1] - 1], self.current_state[current[0]][current[1]]):
-                moveStates.append([current, [[current[0] + 1, current[1] - 1]]])
+                moveStates.append([tuple(current), [(current[0] + 1, current[1] - 1)]])
             if self.checkValidMove(current, [current[0] + 1, current[1] + 1], self.current_state[current[0]][current[1]]):
-                moveStates.append([current, [[current[0] + 1, current[1] + 1]]])
+                moveStates.append([tuple(current), [(current[0] + 1, current[1] + 1)]])
 
             copy_state = copy.deepcopy(self.current_state)
-            capture_dirs = [[-2, -2], [-2, 2], [2, -2], [2, 2]]
+            capture_dirs = [(-2, -2), (-2, 2), (2, -2), (2, 2)]
 
             for curr_dir in capture_dirs:
                 if self.checkValidMove(current, [current[0] + curr_dir[0], current[1] + curr_dir[1]], self.current_state[current[0]][current[1]]):
@@ -460,8 +537,24 @@ class checkersStates():
                     self.current_state = copy.deepcopy(copy_state)
                     captureStates.append([current, captures])
         if len(captureStates) > 0:
-            return "CAPTURE", captureStates
+            possibleCaptures = []
+            for x in captureStates:
+                move_content = [tuple(x[0])]
+                locs = []
+                for y in x[1]:
+                    locs.append(tuple(y))
+                move_content.append(locs)
+                possibleCaptures.append(move_content)
+
+            for x in range(len(possibleCaptures)):
+                possibleCaptures[x][1] = tuple(possibleCaptures[x][1])
+                possibleCaptures[x] = tuple(possibleCaptures[x])
+
+            return "CAPTURE", possibleCaptures
         else:
+            for x in range(len(moveStates)):
+                moveStates[x][1] = tuple(moveStates[x][1])
+                moveStates[x] = tuple(moveStates[x])
             return "FORWARD", moveStates
 
     def getCaptureStates(self, current):
