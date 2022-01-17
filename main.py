@@ -74,12 +74,11 @@ class checkers():
     def agentTurn(self):
         state = checkersStates(self.grid_content)
         copy_state = copy.deepcopy(self.grid_content)
-
+        # """
         agent_type, agent_move = self.alphaBeta(state)
         self.grid_content = copy_state
         state.current_state = copy_state
         print(agent_move)
-        input()
         state.updateLocation(agent_move[0], agent_move[1])
         self.grid_content = state.current_state
         """
@@ -89,7 +88,7 @@ class checkers():
         print(agent_move)
         state.updateLocation(agent_move[0], agent_move[1])
         self.grid_content = state.current_state
-        """
+        # """
 
     def alphaBeta(self, state):
         self.depthLimit = abs((len(state.agent_locations) - len(state.human_locations))) + 2
@@ -123,7 +122,7 @@ class checkers():
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(a[0], a[1])
             v2 = self.minValue(state, alpha, beta, depthLimit - 1)
-            state.current_state = copy_state
+            state.current_state = copy.deepcopy(copy_state)
             if v2 > v:
                 v = v2
                 alpha = max(alpha, v)
@@ -150,7 +149,7 @@ class checkers():
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(a[0], a[1])
             v2 = self.maxValue(state, alpha, beta, depthLimit - 1)
-            state.current_state = copy_state
+            state.current_state = copy.deepcopy(copy_state)
             if v2 < v:
                 v = v2
                 beta = min(beta, v)
@@ -179,14 +178,14 @@ class checkers():
                 value = state.computeUtility()
             else:
                 value = state.computeEvaluation()
-            state.current_state = copy_state
+            state.current_state = copy.deepcopy(copy_state)
             sortMoves.addMove(x, value)
 
         for a in sortMoves.getMoves():
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(a[0], a[1])
             v2 = self.minMoveOrder(state, alpha, beta, depthLimit - 1)
-            state.current_state = copy_state
+            state.current_state = copy.deepcopy(copy_state)
 
             if v2 > v:
                 v = v2
@@ -219,14 +218,14 @@ class checkers():
                 value = state.computeUtility()
             else:
                 value = state.computeEvaluation()
-            state.current_state = copy_state
+            state.current_state = copy.deepcopy(copy_state)
             sortMoves.addMove(x, value)
 
         for a in sortMoves.getMoves():
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(a[0], a[1])
             v2 = self.maxMoveOrder(state, alpha, beta, depthLimit - 1)
-            state.current_state = copy_state
+            state.current_state = copy.deepcopy(copy_state)
             if v2 < v:
                 v = v2
                 beta = min(beta, v)
@@ -240,45 +239,29 @@ class checkers():
 class checkersStates():
     def __init__(self, state):
         self.current_state = state
-        self.human_locations = []
-        self.agent_locations = []
 
+    def getStatistics(self):
+        human_pieces = 0
+        agent_pieces = 0
         for row in range(len(self.current_state)):
             for col in range(len(self.current_state[row])):
                 if self.current_state[row][col] == "HUMAN" or self.current_state[row][col] == "KingH":
-                    self.human_locations.append([row, col])
+                    human_pieces += 1
                 elif self.current_state[row][col] == "AGENT" or self.current_state[row][col] == "KingA":
-                    self.agent_locations.append([row, col])
+                    agent_pieces += 1
 
-    def getStatistics(self):
-        if not self.checkMoves(self.human_locations) and self.checkMoves(self.agent_locations):
+        if not self.checkMoves("HUMAN") and self.checkMoves("AGENT"):
             winner = "Agent"
-        elif self.checkMoves(self.human_locations) and not self.checkMoves(self.agent_locations):
+        elif self.checkMoves("HUMAN") and not self.checkMoves("AGENT"):
             winner = "Human"
-        elif len(self.human_locations) > len(self.agent_locations):
+        elif human_pieces > agent_pieces:
             winner = "Human"
-        elif len(self.human_locations) < len(self.agent_locations):
+        elif human_pieces < agent_pieces:
             winner = "Agent"
-        elif len(self.human_locations) == len(self.agent_locations):
-            winner = "Draw"
         else:
             winner = "Draw"
 
-        return {"Human": len(self.human_locations), "Agent": len(self.agent_locations), "Winner": winner}
-
-    def updatePieces(self):
-        self.human_locations = []
-        self.agent_locations = []
-
-        for row in range(len(self.current_state)):
-            for col in range(len(self.current_state[row])):
-                if self.current_state[row][col] == "HUMAN" or self.current_state[row][col] == "KingH":
-                    self.human_locations.append([row, col])
-                elif self.current_state[row][col] == "AGENT" or self.current_state[row][col] == "KingA":
-                    self.agent_locations.append([row, col])
-
-        self.agent_locations.sort(reverse=True)
-        self.human_locations.sort()
+        return {"Human": human_pieces, "Agent": agent_pieces, "Winner": winner}
 
     def computeUtility(self):
         kings = 0
@@ -286,7 +269,17 @@ class checkersStates():
         for row in self.current_state:
             kings += row.count("KingA")
             men += row.count("AGENT")
-        return ((len(self.agent_locations) - len(self.human_locations)) * 100) + (kings * 50) + (men * 20)
+
+        human_pieces = 0
+        agent_pieces = 0
+        for row in range(len(self.current_state)):
+            for col in range(len(self.current_state[row])):
+                if self.current_state[row][col] == "HUMAN" or self.current_state[row][col] == "KingH":
+                    human_pieces += 1
+                elif self.current_state[row][col] == "AGENT" or self.current_state[row][col] == "KingA":
+                    agent_pieces += 1
+
+        return ((agent_pieces - human_pieces) * 100) + (kings * 50) + (men * 20)
 
     def computeEvaluation(self):
         kings = 0
@@ -294,43 +287,75 @@ class checkersStates():
         for row in self.current_state:
             kings += row.count("KingA")
             men += row.count("AGENT")
-        return ((len(self.agent_locations) - len(self.human_locations)) * 50) + (kings * 25) + (men * 10)
+
+        human_pieces = 0
+        agent_pieces = 0
+        for row in range(len(self.current_state)):
+            for col in range(len(self.current_state[row])):
+                if self.current_state[row][col] == "HUMAN" or self.current_state[row][col] == "KingH":
+                    human_pieces += 1
+                elif self.current_state[row][col] == "AGENT" or self.current_state[row][col] == "KingA":
+                    agent_pieces += 1
+
+        return ((agent_pieces - human_pieces) * 50) + (kings * 25) + (men * 10)
 
     def checkTerminal(self):
+        human_pieces = 0
+        agent_pieces = 0
+        for row in range(len(self.current_state)):
+            for col in range(len(self.current_state[row])):
+                if self.current_state[row][col] == "HUMAN" or self.current_state[row][col] == "KingH":
+                    human_pieces += 1
+                elif self.current_state[row][col] == "AGENT" or self.current_state[row][col] == "KingA":
+                    agent_pieces += 1
+
         if not self.checkMoves("HUMAN") and not self.checkMoves("AGENT"):
             return True
-        elif len(self.human_locations) == 0 and len(self.agent_locations) == 0:
+        elif human_pieces == 0 or agent_pieces == 0:
             return True
         return False
 
     def checkValidMove(self, piece, location, turn):
+        agent_pieces = ("AGENT", "KingA")
+        human_pieces = ("HUMAN", "KingH")
+
         if location[0] < 0 or location[0] > 7 or location[1] < 0 or location[1] > 7:
             return False
-        if (piece not in self.human_locations and (turn == "HUMAN" or turn == "KingH")) or (piece not in self.agent_locations and (turn == "AGENT" or turn == "KingA")):
-            return False
-        if location in self.human_locations or location in self.agent_locations:
+        if piece[0] < 0 or piece[0] > 7 or piece[1] < 0 or piece[1] > 7:
             return False
         if (location[0] % 2 == 1 and location[1] % 2 == 0) or (location[0] % 2 == 0 and location[1] % 2 == 1):
+            return False
+        if (piece[0] % 2 == 1 and piece[1] % 2 == 0) or (piece[0] % 2 == 0 and piece[1] % 2 == 1):
+            return False
+        if self.current_state[piece[0]][piece[1]] not in human_pieces and (turn == "HUMAN" or turn == "KingH"):
+            return False
+        if self.current_state[piece[0]][piece[1]] not in agent_pieces and (turn == "AGENT" or turn == "KingA"):
+            return False
+        if self.current_state[location[0]][location[1]] != "     ":
             return False
 
         if turn == "HUMAN":
             if piece[0] - 1 == location[0] and (piece[1] - 1 == location[1] or piece[1] + 1 == location[1]):
                 return True
             elif piece[0] - 2 == location[0] and (piece[1] - 2 == location[1] or piece[1] + 2 == location[1]):
-                if [piece[0] - 1, piece[1] - 1] in self.agent_locations and [piece[0] - 2, piece[1] - 2] == location:
-                    return True
-                elif [piece[0] - 1, piece[1] + 1] in self.agent_locations and [piece[0] - 2, piece[1] + 2] == location:
-                    return True
+                if 0 <= piece[0] - 1 <= 7 and 0 <= piece[1] - 1 <= 7:
+                    if self.current_state[piece[0] - 1][piece[1] - 1] in agent_pieces and [piece[0] - 2, piece[1] - 2] == location:
+                        return True
+                if 0 <= piece[0] - 1 <= 7 and 0 <= piece[1] + 1 <= 7:
+                    if self.current_state[piece[0] - 1][piece[1] + 1] in agent_pieces and [piece[0] - 2, piece[1] + 2] == location:
+                        return True
                 return False
             return False
         elif turn == "AGENT":
             if piece[0] + 1 == location[0] and (piece[1] - 1 == location[1] or piece[1] + 1 == location[1]):
                 return True
             elif piece[0] + 2 == location[0] and (piece[1] - 2 == location[1] or piece[1] + 2 == location[1]):
-                if [piece[0] + 1, piece[1] - 1] in self.human_locations and [piece[0] + 2, piece[1] - 2] == location:
-                    return True
-                elif [piece[0] + 1, piece[1] + 1] in self.human_locations and [piece[0] + 2, piece[1] + 2] == location:
-                    return True
+                if 0 <= piece[0] + 1 <= 7 and 0 <= piece[1] - 1 <= 7:
+                    if self.current_state[piece[0] + 1][piece[1] - 1] in human_pieces and [piece[0] + 2, piece[1] - 2] == location:
+                        return True
+                if 0 <= piece[0] + 1 <= 7 and 0 <= piece[1] + 1 <= 7:
+                    if self.current_state[piece[0] + 1][piece[1] + 1] in human_pieces and [piece[0] + 2, piece[1] + 2] == location:
+                        return True
                 return False
             return False
         elif turn == "KingH" or turn == "KingA":
@@ -339,24 +364,36 @@ class checkersStates():
             elif piece[0] + 1 == location[0] and (piece[1] - 1 == location[1] or piece[1] + 1 == location[1]):
                 return True
             elif (piece[0] - 2 == location[0] or piece[0] + 2 == location[0]) and (piece[1] - 2 == location[1] or piece[1] + 2 == location[1]):
+                valid_one = 0 <= piece[0] - 1 <= 7 and 0 <= piece[1] - 1 <= 7
+                valid_two = 0 <= piece[0] - 1 <= 7 and 0 <= piece[1] + 1 <= 7
+                valid_three = 0 <= piece[0] + 1 <= 7 and 0 <= piece[1] - 1 <= 7
+                valid_four = 0 <= piece[0] + 1 <= 7 and 0 <= piece[1] + 1 <= 7
                 if turn == "KingH":
-                    if [piece[0] - 1, piece[1] - 1] in self.agent_locations and [piece[0] - 2, piece[1] - 2] == location:
-                        return True
-                    if [piece[0] - 1, piece[1] + 1] in self.agent_locations and [piece[0] - 2,piece[1] + 2] == location:
-                        return True
-                    if [piece[0] + 1, piece[1] - 1] in self.agent_locations and [piece[0] + 2, piece[1] - 2] == location:
-                        return True
-                    if [piece[0] + 1, piece[1] + 1] in self.agent_locations and [piece[0] + 2,piece[1] + 2] == location:
-                        return True
+                    if valid_one:
+                        if self.current_state[piece[0] - 1][piece[1] - 1] in agent_pieces and [piece[0] - 2, piece[1] - 2] == location:
+                            return True
+                    if valid_two:
+                        if self.current_state[piece[0] - 1][piece[1] + 1] in agent_pieces and [piece[0] - 2,piece[1] + 2] == location:
+                            return True
+                    if valid_three:
+                        if self.current_state[piece[0] + 1][piece[1] - 1] in agent_pieces and [piece[0] + 2, piece[1] - 2] == location:
+                            return True
+                    if valid_four:
+                        if self.current_state[piece[0] + 1][piece[1] + 1] in agent_pieces and [piece[0] + 2,piece[1] + 2] == location:
+                            return True
                 else:
-                    if [piece[0] - 1, piece[1] - 1] in self.human_locations and [piece[0] - 2, piece[1] - 2] == location:
-                        return True
-                    if [piece[0] - 1, piece[1] + 1] in self.human_locations and [piece[0] - 2, piece[1] + 2] == location:
-                        return True
-                    if [piece[0] + 1, piece[1] - 1] in self.human_locations and [piece[0] + 2, piece[1] - 2] == location:
-                        return True
-                    if [piece[0] + 1, piece[1] + 1] in self.human_locations and [piece[0] + 2, piece[1] + 2] == location:
-                        return True
+                    if valid_one:
+                        if self.current_state[piece[0] - 1][piece[1] - 1] in human_pieces and [piece[0] - 2, piece[1] - 2] == location:
+                            return True
+                    if valid_two:
+                        if self.current_state[piece[0] - 1][piece[1] + 1] in human_pieces and [piece[0] - 2, piece[1] + 2] == location:
+                            return True
+                    if valid_three:
+                        if self.current_state[piece[0] + 1][piece[1] - 1] in human_pieces and [piece[0] + 2, piece[1] - 2] == location:
+                            return True
+                    if valid_four:
+                        if self.current_state[piece[0] + 1][piece[1] + 1] in human_pieces and [piece[0] + 2, piece[1] + 2] == location:
+                            return True
                 return False
             return False
         else:
@@ -365,11 +402,19 @@ class checkersStates():
     def getStates(self, turn):
         moveStates = []
         captureStates = []
+        player_locations = []
+
+        for row in range(len(self.current_state)):
+            for col in range(len(self.current_state[row])):
+                if turn == "HUMAN" and (self.current_state[row][col] == "HUMAN" or self.current_state[row][col] == "KingH"):
+                    player_locations.append([row, col])
+                elif turn != "HUMAN" and (self.current_state[row][col] == "AGENT" or self.current_state[row][col] == "KingA"):
+                    player_locations.append([row, col])
 
         if turn == "HUMAN":
-            player_locations = self.human_locations
+            player_locations.sort()
         else:
-            player_locations = self.agent_locations
+            player_locations.sort(reverse=True)
 
         for current in player_locations:
             if self.checkValidMove(current, [current[0] - 1, current[1] - 1], self.current_state[current[0]][current[1]]):
@@ -381,35 +426,71 @@ class checkersStates():
             if self.checkValidMove(current, [current[0] + 1, current[1] + 1], self.current_state[current[0]][current[1]]):
                 moveStates.append([current, [[current[0] + 1, current[1] + 1]]])
 
-            if self.checkValidMove(current, [current[0] - 2, current[1] - 2], self.current_state[current[0]][current[1]]):
-                captureStates.append([current, [[current[0] - 2, current[1] - 2]]])
-            if self.checkValidMove(current, [current[0] - 2, current[1] + 2], self.current_state[current[0]][current[1]]):
-                captureStates.append([current, [[current[0] - 2, current[1] + 2]]])
-            if self.checkValidMove(current, [current[0] + 2, current[1] - 2], self.current_state[current[0]][current[1]]):
-                captureStates.append([current, [[current[0] + 2, current[1] - 2]]])
-            if self.checkValidMove(current, [current[0] + 2, current[1] + 2], self.current_state[current[0]][current[1]]):
-                captureStates.append([current, [[current[0] + 2, current[1] + 2]]])
+            copy_state = copy.deepcopy(self.current_state)
+            capture_dirs = [[-2, -2], [-2, 2], [2, -2], [2, 2]]
+
+            for curr_dir in capture_dirs:
+                if self.checkValidMove(current, [current[0] + curr_dir[0], current[1] + curr_dir[1]], self.current_state[current[0]][current[1]]):
+                    curr_move = "CAPTURE"
+                    captures = [[current[0] + curr_dir[0], current[1] + curr_dir[1]]]
+                    old_piece = [current[0] + curr_dir[0], current[1] + curr_dir[1]]
+                    other_options = []
+                    curr_other = 0
+
+                    self.updateLocation(current, [[current[0] + curr_dir[0], current[1] + curr_dir[1]]])
+                    while curr_move == "CAPTURE":
+                        curr_move, next_move = self.getCaptureStates(old_piece)
+                        if curr_move == "CAPTURE":
+                            if len(next_move) > 1:
+                                for x in next_move:
+                                    other_options.append(captures + [x])
+                                curr_other += 1
+                            self.updateLocation(old_piece, [next_move[0]])
+                            captures.append(next_move[0])
+                            old_piece = next_move[0]
+                        elif curr_other < len(other_options):
+                            captureStates.append([current, captures])
+                            self.current_state = copy.deepcopy(copy_state)
+                            self.updateLocation(current, other_options[curr_other])
+                            captures = other_options[curr_other]
+                            curr_move = "CAPTURE"
+                            old_piece = other_options[curr_other][len(other_options[curr_other]) - 1]
+                            curr_other += 1
+
+                    self.current_state = copy.deepcopy(copy_state)
+                    captureStates.append([current, captures])
         if len(captureStates) > 0:
             return "CAPTURE", captureStates
         else:
             return "FORWARD", moveStates
 
     def getCaptureStates(self, current):
+        curr_move = "FORWARD"
+        captures = []
         if self.checkValidMove(current, [current[0] - 2, current[1] - 2], self.current_state[current[0]][current[1]]):
-            return "CAPTURE", [current[0] - 2, current[1] - 2]
+            curr_move = "CAPTURE"
+            captures.append([current[0] - 2, current[1] - 2])
         if self.checkValidMove(current, [current[0] - 2, current[1] + 2], self.current_state[current[0]][current[1]]):
-            return "CAPTURE", [current[0] - 2, current[1] + 2]
+            curr_move = "CAPTURE"
+            captures.append([current[0] - 2, current[1] + 2])
         if self.checkValidMove(current, [current[0] + 2, current[1] - 2], self.current_state[current[0]][current[1]]):
-            return "CAPTURE", [current[0] + 2, current[1] - 2]
+            curr_move = "CAPTURE"
+            captures.append([current[0] + 2, current[1] - 2])
         if self.checkValidMove(current, [current[0] + 2, current[1] + 2], self.current_state[current[0]][current[1]]):
-            return "CAPTURE", [current[0] + 2, current[1] + 2]
-        return "FORWARD", []
+            curr_move = "CAPTURE"
+            captures.append([current[0] + 2, current[1] + 2])
+
+        return curr_move, captures
 
     def checkMoves(self, turn):
-        if turn == "HUMAN":
-            player_locations = self.human_locations
-        else:
-            player_locations = self.agent_locations
+        player_locations = []
+
+        for row in range(len(self.current_state)):
+            for col in range(len(self.current_state[row])):
+                if turn == "HUMAN" and (self.current_state[row][col] == "HUMAN" or self.current_state[row][col] == "KingH"):
+                    player_locations.append([row, col])
+                elif turn != "HUMAN" and (self.current_state[row][col] == "AGENT" or self.current_state[row][col] == "KingA"):
+                    player_locations.append([row, col])
 
         for current in player_locations:
             if self.checkValidMove(current, [current[0] - 1, current[1] - 1], self.current_state[current[0]][current[1]]):
@@ -434,44 +515,44 @@ class checkersStates():
     def updateLocation(self, oldLocation, newLocation):
         updatedLocation = True
 
+        old = oldLocation
         for currentUpdate in newLocation:
             capturedPiece = False
             capturedLocation = []
-            if oldLocation[0] + 2 == currentUpdate[0] and oldLocation[1] + 2 == currentUpdate[1]:
-                capturedLocation = [oldLocation[0] + 1, oldLocation[1] + 1]
+            if old[0] + 2 == currentUpdate[0] and old[1] + 2 == currentUpdate[1]:
+                capturedLocation = [old[0] + 1, old[1] + 1]
                 capturedPiece = True
-            elif oldLocation[0] - 2 == currentUpdate[0] and oldLocation[1] + 2 == currentUpdate[1]:
-                capturedLocation = [oldLocation[0] - 1, oldLocation[1] + 1]
+            elif old[0] - 2 == currentUpdate[0] and old[1] + 2 == currentUpdate[1]:
+                capturedLocation = [old[0] - 1, old[1] + 1]
                 capturedPiece = True
-            elif oldLocation[0] + 2 == currentUpdate[0] and oldLocation[1] - 2 == currentUpdate[1]:
-                capturedLocation = [oldLocation[0] + 1, oldLocation[1] - 1]
+            elif old[0] + 2 == currentUpdate[0] and old[1] - 2 == currentUpdate[1]:
+                capturedLocation = [old[0] + 1, old[1] - 1]
                 capturedPiece = True
-            elif oldLocation[0] - 2 == currentUpdate[0] and oldLocation[1] - 2 == currentUpdate[1]:
-                capturedLocation = [oldLocation[0] - 1, oldLocation[1] - 1]
+            elif old[0] - 2 == currentUpdate[0] and old[1] - 2 == currentUpdate[1]:
+                capturedLocation = [old[0] - 1, old[1] - 1]
                 capturedPiece = True
 
             if capturedPiece:
                 self.current_state[capturedLocation[0]][capturedLocation[1]] = "     "
 
             if updatedLocation:
-                if self.current_state[oldLocation[0]][oldLocation[1]] == "HUMAN" or self.current_state[oldLocation[0]][oldLocation[1]] == "KingH":
+                if self.current_state[old[0]][old[1]] == "HUMAN" or self.current_state[old[0]][old[1]] == "KingH":
                     if currentUpdate[0] == 0:
                         self.current_state[currentUpdate[0]][currentUpdate[1]] = "KingH"
                     else:
-                        self.current_state[currentUpdate[0]][currentUpdate[1]] = self.current_state[oldLocation[0]][oldLocation[1]]
-                    self.current_state[oldLocation[0]][oldLocation[1]] = "     "
-                elif self.current_state[oldLocation[0]][oldLocation[1]] == "AGENT" or self.current_state[oldLocation[0]][oldLocation[1]] == "KingA":
+                        self.current_state[currentUpdate[0]][currentUpdate[1]] = self.current_state[old[0]][old[1]]
+                    self.current_state[old[0]][old[1]] = "     "
+                elif self.current_state[old[0]][old[1]] == "AGENT" or self.current_state[old[0]][old[1]] == "KingA":
                     if currentUpdate[0] == 7:
                         self.current_state[currentUpdate[0]][currentUpdate[1]] = "KingA"
                     else:
-                        self.current_state[currentUpdate[0]][currentUpdate[1]] = self.current_state[oldLocation[0]][oldLocation[1]]
-                    self.current_state[oldLocation[0]][oldLocation[1]] = "     "
+                        self.current_state[currentUpdate[0]][currentUpdate[1]] = self.current_state[old[0]][old[1]]
+                    self.current_state[old[0]][old[1]] = "     "
                 else:
                     updatedLocation = False
 
-            oldLocation = currentUpdate
+            old = currentUpdate
 
-        self.updatePieces()
         return updatedLocation
 
     def printBoard(self):
