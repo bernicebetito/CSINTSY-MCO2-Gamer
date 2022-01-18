@@ -27,24 +27,9 @@ class SortMoves():
 class TranspositionTable():
     def __init__(self):
         self.moveOrderCache = {}
-        self.indexTable = [[[random.getrandbits(32)] * 2 for _ in range(8)] for _ in range(8)]
 
-    def computeHash(self, board):
-        self.keyHash = 0
-        for x in range(8):
-            for y in range(8):
-                if board[x][y] == "HUMAN" or board[x][y] == "KingH":
-                    self.keyHash ^= self.indexTable[x][y][0]
-                elif board[x][y] == "AGENT" or board[x][y] == "KingA":
-                    self.keyHash ^= self.indexTable[x][y][1]
-        return self.keyHash
-
-    def findIndex(self, position):
-        index = self.indexTable.index(position)
-        return self.keyHash ^ index
-
-    def insertValue(self, key, value, bound):
-        move_values = {"value": value, "bound": bound}
+    def insertValue(self, key, value):
+        move_values = {"value": value}
         self.moveOrderCache[key] = move_values
 
     def getValue(self, key):
@@ -57,6 +42,7 @@ class checkers():
     def __init__(self):
         self.grid_content = []
         self.cache = TranspositionTable()
+        self.stats_file = open("stats.txt", "w")
 
     def initializeGrid(self):
         for row in range(8):
@@ -160,6 +146,12 @@ class checkers():
         print("nodes: ", self.numNodes)
         print("max pruning: ", self.maxPruning)
         print("min pruning: ", self.minPruning)
+        """
+        print("v: ", str(v), file=self.stats_file)
+        print("nodes: ", self.numNodes, file=self.stats_file)
+        print("max pruning: ", self.maxPruning, file=self.stats_file)
+        print("min pruning: ", self.minPruning, end="\n\n", file=self.stats_file)
+        """
 
         return self.agent_move_type, self.agent_move
 
@@ -170,7 +162,7 @@ class checkers():
             return state.computeEvaluation()
 
         self.numNodes += 1
-
+        print("\n\nmax:\t", self.numNodes)
         v = -math.inf
         typeMove, possibleMoves = state.getStates("AGENT")
         for a in possibleMoves:
@@ -197,7 +189,7 @@ class checkers():
             return state.computeEvaluation()
 
         self.numNodes += 1
-
+        print("min:\t", self.numNodes)
         v = math.inf
         typeMove, possibleMoves = state.getStates("HUMAN")
         for a in possibleMoves:
@@ -220,25 +212,11 @@ class checkers():
         if depthLimit == 0:
             return state.computeEvaluation()
 
-        self.numNodes += 1
-
-        v = -math.inf
         typeMove, possibleMoves = state.getStates("AGENT")
-
         sortMoves = SortMoves(len(possibleMoves))
         for x in possibleMoves:
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(x[0], x[1])
-            if state.checkTerminal():
-                value = state.computeUtility()
-            else:
-                value = state.computeEvaluation()
-            state.current_state = copy.deepcopy(copy_state)
-            sortMoves.addMove(x, value)
-
-        for a in sortMoves.getMoves():
-            copy_state = copy.deepcopy(state.current_state)
-            state.updateLocation(a[0], a[1])
 
             tuple_grid = []
             for row in state.current_state:
@@ -248,37 +226,22 @@ class checkers():
             # """
             if hash(tuple_grid) in self.cache.moveOrderCache:
                 cacheValue = self.cache.getValue(hash(tuple_grid))
-                if cacheValue["bound"] == "UPPER":
-                    beta = min(beta, cacheValue["value"])
-                elif cacheValue["bound"] == "LOWER":
-                    alpha = min(alpha, cacheValue["value"])
-                elif cacheValue["bound"] == "EXACT":
-                    """
-                    self.agent_move = a
-                    self.agent_move_type = typeMove
-                    print("EXACT\tcacheValue:\t", cacheValue, "\ta:\t", a)
-                    state.current_state = copy.deepcopy(copy_state)
-                    return cacheValue["value"]
-                    """
-                    v2 = cacheValue["value"]
-
-                if alpha >= beta:
-                    """
-                    self.agent_move = a
-                    self.agent_move_type = typeMove
-                    print("alpha >= beta\talpha:\t", alpha,"\tbeta:\t", beta,"\tcacheValue:\t", cacheValue, "\ta:\t", a)
-                    state.current_state = copy.deepcopy(copy_state)
-                    return cacheValue["value"]
-                    """
-                    v2 = cacheValue["value"]
-                else:
-                    v2 = self.minMoveOrder(state, alpha, beta, depthLimit - 1)
-                    state.current_state = copy.deepcopy(copy_state)
+                value = cacheValue["value"]
             # """
             else:
-                v2 = self.minMoveOrder(state, alpha, beta, depthLimit - 1)
-                state.current_state = copy.deepcopy(copy_state)
+                value = self.minMoveOrder(state, alpha, beta, 1)
 
+            state.current_state = copy.deepcopy(copy_state)
+            sortMoves.addMove(x, value)
+
+        self.numNodes += 1
+        print("\n\nmax:\t", self.numNodes)
+        v = -math.inf
+        for a in sortMoves.getMoves():
+            copy_state = copy.deepcopy(state.current_state)
+            state.updateLocation(a[0], a[1])
+            v2 = self.minMoveOrder(state, alpha, beta, depthLimit - 1)
+            state.current_state = copy.deepcopy(copy_state)
             if v2 > v:
                 v = v2
                 alpha = max(alpha, v)
@@ -289,13 +252,11 @@ class checkers():
                 self.maxPruning += 1
                 return v
 
-            if v2 <= alpha:
-                bound = "UPPER"
-            elif v2 >= beta:
-                bound = "LOWER"
-            else:
-                bound = "EXACT"
-            self.cache.insertValue(hash(tuple_grid), v, bound)
+            tuple_grid = []
+            for row in state.current_state:
+                tuple_grid.append(tuple(row))
+            tuple_grid = tuple(tuple_grid)
+            self.cache.insertValue(hash(tuple_grid), v)
 
         return v
 
@@ -305,25 +266,11 @@ class checkers():
         if depthLimit == 0:
             return state.computeEvaluation()
 
-        self.numNodes += 1
-
-        v = math.inf
         typeMove, possibleMoves = state.getStates("HUMAN")
-
         sortMoves = SortMoves(len(possibleMoves))
         for x in possibleMoves:
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(x[0], x[1])
-            if state.checkTerminal():
-                value = state.computeUtility()
-            else:
-                value = state.computeEvaluation()
-            state.current_state = copy.deepcopy(copy_state)
-            sortMoves.addMove(x, value)
-
-        for a in sortMoves.getMoves():
-            copy_state = copy.deepcopy(state.current_state)
-            state.updateLocation(a[0], a[1])
 
             tuple_grid = []
             for row in state.current_state:
@@ -333,31 +280,22 @@ class checkers():
             # """
             if hash(tuple_grid) in self.cache.moveOrderCache:
                 cacheValue = self.cache.getValue(hash(tuple_grid))
-                if cacheValue["bound"] == "UPPER":
-                    beta = min(beta, cacheValue["value"])
-                elif cacheValue["bound"] == "LOWER":
-                    alpha = min(alpha, cacheValue["value"])
-                elif cacheValue["bound"] == "EXACT":
-                    """
-                    state.current_state = copy.deepcopy(copy_state)
-                    return cacheValue["value"]
-                    """
-                    v2 = cacheValue["value"]
-
-                if alpha >= beta:
-                    """
-                    state.current_state = copy.deepcopy(copy_state)
-                    return cacheValue["value"]
-                    """
-                    v2 = cacheValue["value"]
-                else:
-                    v2 = self.maxMoveOrder(state, alpha, beta, depthLimit - 1)
-                    state.current_state = copy.deepcopy(copy_state)
+                value = cacheValue["value"]
             # """
             else:
-                v2 = self.maxMoveOrder(state, alpha, beta, depthLimit - 1)
-                state.current_state = copy.deepcopy(copy_state)
+                value = self.minMoveOrder(state, alpha, beta, depthLimit - 1)
 
+            state.current_state = copy.deepcopy(copy_state)
+            sortMoves.addMove(x, value)
+
+        self.numNodes += 1
+        print("min:\t", self.numNodes)
+        v = math.inf
+        for a in sortMoves.getMoves():
+            copy_state = copy.deepcopy(state.current_state)
+            state.updateLocation(a[0], a[1])
+            v2 = self.maxMoveOrder(state, alpha, beta, depthLimit - 1)
+            state.current_state = copy.deepcopy(copy_state)
             if v2 < v:
                 v = v2
                 beta = min(beta, v)
@@ -365,13 +303,11 @@ class checkers():
                 self.minPruning += 1
                 return v
 
-            if v2 <= alpha:
-                bound = "UPPER"
-            elif v2 >= beta:
-                bound = "LOWER"
-            else:
-                bound = "EXACT"
-            self.cache.insertValue(hash(tuple_grid), v, bound)
+            tuple_grid = []
+            for row in state.current_state:
+                tuple_grid.append(tuple(row))
+            tuple_grid = tuple(tuple_grid)
+            self.cache.insertValue(hash(tuple_grid), v)
 
         return v
 
@@ -600,6 +536,7 @@ class checkersStates():
                     self.current_state = copy.deepcopy(copy_state)
                     captureStates.append([current, captures])
         if len(captureStates) > 0:
+            random.shuffle(captureStates)
             possibleCaptures = []
             for x in captureStates:
                 move_content = [tuple(x[0])]
@@ -615,6 +552,7 @@ class checkersStates():
 
             return "CAPTURE", possibleCaptures
         else:
+            random.shuffle(moveStates)
             for x in range(len(moveStates)):
                 moveStates[x][1] = tuple(moveStates[x][1])
                 moveStates[x] = tuple(moveStates[x])
@@ -788,15 +726,15 @@ if __name__ == "__main__":
                             if not game.humanTurn(piece, move):
                                 human_turn = True
                                 valid_move = False
-                                print("\n2 Invalid Option Number! Please enter a Valid Option Number.\n")
+                                print("\nInvalid Option Number! Please enter a Valid Option Number.\n")
                             else:
                                 human_turn = False
                                 valid_move = True
                         else:
-                            print("Possible Moves Len: ", len(possibleMoves))
+                            print("Possible Options: [1 - {}]".format(len(possibleMoves)))
                             human_turn = True
                             valid_move = False
-                            print("\n1 Invalid Option Number! Please enter a Valid Option Number.\n")
+                            print("\nInvalid Option Number! Please enter a Valid Option Number.\n")
             else:
                 print("\nAgent's Turn...\n")
                 time.sleep(1)
