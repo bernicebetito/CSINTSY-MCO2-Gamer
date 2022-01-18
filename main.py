@@ -43,8 +43,8 @@ class TranspositionTable():
         index = self.indexTable.index(position)
         return self.keyHash ^ index
 
-    def insertValue(self, key, value, alpha, beta):
-        move_values = {"value": value, "alpha": alpha, "beta": beta}
+    def insertValue(self, key, value, bound):
+        move_values = {"value": value, "bound": bound}
         self.moveOrderCache[key] = move_values
 
     def getValue(self, key):
@@ -124,6 +124,7 @@ class checkers():
         self.grid_content = copy_state
         state.current_state = copy_state
         print(agent_move)
+        input()
         state.updateLocation(agent_move[0], agent_move[1])
         self.grid_content = state.current_state
         """
@@ -236,32 +237,65 @@ class checkers():
             sortMoves.addMove(x, value)
 
         for a in sortMoves.getMoves():
-            # """
-            if hash(a) in self.cache.moveOrderCache:
-                cacheValue = self.cache.getValue(hash(a))
-                if cacheValue["beta"] >= beta:
-                    return cacheValue["beta"]
-                alpha = max(alpha, cacheValue["beta"])
-
-                if cacheValue["alpha"] <= alpha:
-                    return cacheValue["alpha"]
-                beta = min(beta, cacheValue["alpha"])
-            # """
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(a[0], a[1])
-            v2 = self.minMoveOrder(state, alpha, beta, depthLimit - 1)
-            state.current_state = copy.deepcopy(copy_state)
+
+            tuple_grid = []
+            for row in state.current_state:
+                tuple_grid.append(tuple(row))
+            tuple_grid = tuple(tuple_grid)
+
+            # """
+            if hash(tuple_grid) in self.cache.moveOrderCache:
+                cacheValue = self.cache.getValue(hash(tuple_grid))
+                if cacheValue["bound"] == "UPPER":
+                    beta = min(beta, cacheValue["value"])
+                elif cacheValue["bound"] == "LOWER":
+                    alpha = min(alpha, cacheValue["value"])
+                elif cacheValue["bound"] == "EXACT":
+                    """
+                    self.agent_move = a
+                    self.agent_move_type = typeMove
+                    print("EXACT\tcacheValue:\t", cacheValue, "\ta:\t", a)
+                    state.current_state = copy.deepcopy(copy_state)
+                    return cacheValue["value"]
+                    """
+                    v2 = cacheValue["value"]
+
+                if alpha >= beta:
+                    """
+                    self.agent_move = a
+                    self.agent_move_type = typeMove
+                    print("alpha >= beta\talpha:\t", alpha,"\tbeta:\t", beta,"\tcacheValue:\t", cacheValue, "\ta:\t", a)
+                    state.current_state = copy.deepcopy(copy_state)
+                    return cacheValue["value"]
+                    """
+                    v2 = cacheValue["value"]
+                else:
+                    v2 = self.minMoveOrder(state, alpha, beta, depthLimit - 1)
+                    state.current_state = copy.deepcopy(copy_state)
+            # """
+            else:
+                v2 = self.minMoveOrder(state, alpha, beta, depthLimit - 1)
+                state.current_state = copy.deepcopy(copy_state)
 
             if v2 > v:
                 v = v2
                 alpha = max(alpha, v)
-                self.cache.insertValue(hash(a), v, alpha, beta)
                 if depthLimit == self.depthLimit:
                     self.agent_move = a
                     self.agent_move_type = typeMove
             if v >= beta:
                 self.maxPruning += 1
                 return v
+
+            if v2 <= alpha:
+                bound = "UPPER"
+            elif v2 >= beta:
+                bound = "LOWER"
+            else:
+                bound = "EXACT"
+            self.cache.insertValue(hash(tuple_grid), v, bound)
 
         return v
 
@@ -288,27 +322,56 @@ class checkers():
             sortMoves.addMove(x, value)
 
         for a in sortMoves.getMoves():
-            # """
-            if hash(a) in self.cache.moveOrderCache:
-                cacheValue = self.cache.getValue(hash(a))
-                if cacheValue["beta"] >= beta:
-                    return cacheValue["beta"]
-                alpha = max(alpha, cacheValue["beta"])
-
-                if cacheValue["alpha"] <= alpha:
-                    return cacheValue["alpha"]
-                beta = min(beta, cacheValue["alpha"])
-            # """
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(a[0], a[1])
-            v2 = self.maxMoveOrder(state, alpha, beta, depthLimit - 1)
-            state.current_state = copy.deepcopy(copy_state)
+
+            tuple_grid = []
+            for row in state.current_state:
+                tuple_grid.append(tuple(row))
+            tuple_grid = tuple(tuple_grid)
+
+            # """
+            if hash(tuple_grid) in self.cache.moveOrderCache:
+                cacheValue = self.cache.getValue(hash(tuple_grid))
+                if cacheValue["bound"] == "UPPER":
+                    beta = min(beta, cacheValue["value"])
+                elif cacheValue["bound"] == "LOWER":
+                    alpha = min(alpha, cacheValue["value"])
+                elif cacheValue["bound"] == "EXACT":
+                    """
+                    state.current_state = copy.deepcopy(copy_state)
+                    return cacheValue["value"]
+                    """
+                    v2 = cacheValue["value"]
+
+                if alpha >= beta:
+                    """
+                    state.current_state = copy.deepcopy(copy_state)
+                    return cacheValue["value"]
+                    """
+                    v2 = cacheValue["value"]
+                else:
+                    v2 = self.maxMoveOrder(state, alpha, beta, depthLimit - 1)
+                    state.current_state = copy.deepcopy(copy_state)
+            # """
+            else:
+                v2 = self.maxMoveOrder(state, alpha, beta, depthLimit - 1)
+                state.current_state = copy.deepcopy(copy_state)
+
             if v2 < v:
                 v = v2
                 beta = min(beta, v)
             if v <= alpha:
                 self.minPruning += 1
                 return v
+
+            if v2 <= alpha:
+                bound = "UPPER"
+            elif v2 >= beta:
+                bound = "LOWER"
+            else:
+                bound = "EXACT"
+            self.cache.insertValue(hash(tuple_grid), v, bound)
 
         return v
 
@@ -678,7 +741,10 @@ if __name__ == "__main__":
     key_input = ""
     while key_input.lower() != "s":
         key_input = input()
+        if key_input.lower() != "s":
+            print("Invalid Key! Please Enter [S] to Start...\n")
 
+    # os.system("cls" if os.name == "nt" else "clear")
     game_continue = True
     human_turn = False
     while game_continue:
