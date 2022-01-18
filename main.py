@@ -110,7 +110,6 @@ class checkers():
         self.grid_content = copy_state
         state.current_state = copy_state
         print(agent_move)
-        input()
         state.updateLocation(agent_move[0], agent_move[1])
         self.grid_content = state.current_state
         """
@@ -142,16 +141,19 @@ class checkers():
         # v = self.maxValue(state, -math.inf, math.inf, self.depthLimit)
         v = self.maxMoveOrder(state, -math.inf, math.inf, self.depthLimit)
 
+        print("depth: ", self.depthLimit)
         print("v: ", str(v))
         print("nodes: ", self.numNodes)
         print("max pruning: ", self.maxPruning)
         print("min pruning: ", self.minPruning)
-        """
+
+        # """
+        print("depth: ", self.depthLimit, file=self.stats_file)
         print("v: ", str(v), file=self.stats_file)
         print("nodes: ", self.numNodes, file=self.stats_file)
         print("max pruning: ", self.maxPruning, file=self.stats_file)
         print("min pruning: ", self.minPruning, end="\n\n", file=self.stats_file)
-        """
+        # """
 
         return self.agent_move_type, self.agent_move
 
@@ -235,7 +237,6 @@ class checkers():
             sortMoves.addMove(x, value)
 
         self.numNodes += 1
-        print("\n\nmax:\t", self.numNodes)
         v = -math.inf
         for a in sortMoves.getMoves():
             copy_state = copy.deepcopy(state.current_state)
@@ -283,13 +284,12 @@ class checkers():
                 value = cacheValue["value"]
             # """
             else:
-                value = self.minMoveOrder(state, alpha, beta, depthLimit - 1)
+                value = state.computeEvaluation()
 
             state.current_state = copy.deepcopy(copy_state)
             sortMoves.addMove(x, value)
 
         self.numNodes += 1
-        print("min:\t", self.numNodes)
         v = math.inf
         for a in sortMoves.getMoves():
             copy_state = copy.deepcopy(state.current_state)
