@@ -138,21 +138,22 @@ class checkers():
         self.agent_move_type = ""
         self.agent_move = []
 
+        start_time = time.time()
         # v = self.maxValue(state, -math.inf, math.inf, self.depthLimit)
         v = self.maxMoveOrder(state, -math.inf, math.inf, self.depthLimit)
+        end_time = time.time()
+        total_time = end_time - start_time
 
         print("depth: ", self.depthLimit)
         print("v: ", str(v))
         print("nodes: ", self.numNodes)
         print("max pruning: ", self.maxPruning)
         print("min pruning: ", self.minPruning)
+        print("total time: ", total_time)
 
         # """
-        print("depth: ", self.depthLimit, file=self.stats_file)
-        print("v: ", str(v), file=self.stats_file)
-        print("nodes: ", self.numNodes, file=self.stats_file)
-        print("max pruning: ", self.maxPruning, file=self.stats_file)
-        print("min pruning: ", self.minPruning, end="\n\n", file=self.stats_file)
+        # print("v\tn\tMAX\tMIN", file=self.stats_file)
+        print(total_time, "\t", v, "\t", self.numNodes,"\t", self.maxPruning, "\t0\t", self.minPruning, "\t0\t", file=self.stats_file)
         # """
 
         return self.agent_move_type, self.agent_move
@@ -164,7 +165,6 @@ class checkers():
             return state.computeEvaluation()
 
         self.numNodes += 1
-        print("\n\nmax:\t", self.numNodes)
         v = -math.inf
         typeMove, possibleMoves = state.getStates("AGENT")
         for a in possibleMoves:
@@ -191,7 +191,6 @@ class checkers():
             return state.computeEvaluation()
 
         self.numNodes += 1
-        print("min:\t", self.numNodes)
         v = math.inf
         typeMove, possibleMoves = state.getStates("HUMAN")
         for a in possibleMoves:
@@ -220,19 +219,20 @@ class checkers():
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(x[0], x[1])
 
+            """
             tuple_grid = []
             for row in state.current_state:
                 tuple_grid.append(tuple(row))
             tuple_grid = tuple(tuple_grid)
-
-            # """
+            
             if hash(tuple_grid) in self.cache.moveOrderCache:
                 cacheValue = self.cache.getValue(hash(tuple_grid))
                 value = cacheValue["value"]
-            # """
             else:
                 value = self.minMoveOrder(state, alpha, beta, 1)
+            # """
 
+            value = state.computeEvaluation()
             state.current_state = copy.deepcopy(copy_state)
             sortMoves.addMove(x, value)
 
@@ -273,19 +273,20 @@ class checkers():
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(x[0], x[1])
 
+            """
             tuple_grid = []
             for row in state.current_state:
                 tuple_grid.append(tuple(row))
             tuple_grid = tuple(tuple_grid)
 
-            # """
             if hash(tuple_grid) in self.cache.moveOrderCache:
                 cacheValue = self.cache.getValue(hash(tuple_grid))
                 value = cacheValue["value"]
-            # """
             else:
                 value = state.computeEvaluation()
+            # """
 
+            value = state.computeEvaluation()
             state.current_state = copy.deepcopy(copy_state)
             sortMoves.addMove(x, value)
 
@@ -536,7 +537,7 @@ class checkersStates():
                     self.current_state = copy.deepcopy(copy_state)
                     captureStates.append([current, captures])
         if len(captureStates) > 0:
-            random.shuffle(captureStates)
+            # random.shuffle(captureStates)
             possibleCaptures = []
             for x in captureStates:
                 move_content = [tuple(x[0])]
@@ -552,7 +553,7 @@ class checkersStates():
 
             return "CAPTURE", possibleCaptures
         else:
-            random.shuffle(moveStates)
+            # random.shuffle(moveStates)
             for x in range(len(moveStates)):
                 moveStates[x][1] = tuple(moveStates[x][1])
                 moveStates[x] = tuple(moveStates[x])
@@ -671,6 +672,7 @@ class checkersStates():
 
 
 if __name__ == "__main__":
+    move_file = open("moves.txt", "w")
     game = checkers()
     game.initializeGrid()
 
@@ -728,6 +730,14 @@ if __name__ == "__main__":
                                 valid_move = False
                                 print("\nInvalid Option Number! Please enter a Valid Option Number.\n")
                             else:
+                                piece_print = chr(possibleMoves[int(user_move) - 1][0][0] + 65) + str(possibleMoves[int(user_move) - 1][0][1] + 1)
+                                moves_print = ""
+
+                                for curr_move in possibleMoves[int(user_move) - 1][1]:
+                                    move_formatted = chr(curr_move[0] + 65) + str(curr_move[1] + 1)
+                                    moves_print += "\t" + move_formatted
+
+                                print(piece_print, "\t|", moves_print, file=move_file)
                                 human_turn = False
                                 valid_move = True
                         else:
