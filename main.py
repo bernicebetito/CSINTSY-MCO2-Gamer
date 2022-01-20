@@ -1,7 +1,7 @@
 import math, os, time, random, copy
 
 
-class SortMoves():
+class SortMoves:
     def __init__(self, moveSize):
         self.sortedMoves = [[0, 0] for _ in range(moveSize)]
         self.sizeSorted = 0
@@ -24,7 +24,7 @@ class SortMoves():
         return ordered
 
 
-class TranspositionTable():
+class TranspositionTable:
     def __init__(self):
         self.moveOrderCache = {}
 
@@ -38,7 +38,7 @@ class TranspositionTable():
         return False
 
 
-class checkers():
+class Checkers:
     def __init__(self):
         self.grid_content = []
         self.cache = TranspositionTable()
@@ -79,31 +79,32 @@ class checkers():
         self.grid_content[5][5] = "HUMAN"
 
     def gameContinue(self):
-        state = checkersStates(self.grid_content)
+        state = CheckersStates(self.grid_content)
         state.printBoard()
         return state.checkMoves("HUMAN") and state.checkMoves("AGENT")
 
     def endGame(self):
-        state = checkersStates(self.grid_content)
+        state = CheckersStates(self.grid_content)
         return state.getStatistics()
 
     def getPossibleMoves(self, turn):
         copy_state = copy.deepcopy(self.grid_content)
-        states = checkersStates(self.grid_content)
+        states = CheckersStates(self.grid_content)
         possible_states = states.getStates(turn)
         self.grid_content = copy_state
         return possible_states
 
     def humanTurn(self, oldLocation, newLocation):
-        state = checkersStates(self.grid_content)
-        updatedLocation = state.updateLocation(oldLocation, newLocation)
-        if updatedLocation:
+        try:
+            state = CheckersStates(self.grid_content)
+            state.updateLocation(oldLocation, newLocation)
             self.grid_content = state.current_state
-
-        return updatedLocation
+            return True
+        except:
+            return False
 
     def agentTurn(self):
-        state = checkersStates(self.grid_content)
+        state = CheckersStates(self.grid_content)
         copy_state = copy.deepcopy(self.grid_content)
         # """
         agent_type, agent_move = self.alphaBeta(state)
@@ -219,7 +220,7 @@ class checkers():
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(x[0], x[1])
 
-            """
+            # """
             tuple_grid = []
             for row in state.current_state:
                 tuple_grid.append(tuple(row))
@@ -227,12 +228,14 @@ class checkers():
             
             if hash(tuple_grid) in self.cache.moveOrderCache:
                 cacheValue = self.cache.getValue(hash(tuple_grid))
-                value = cacheValue["value"]
+                if alpha < cacheValue["value"] < beta:
+                    value = cacheValue["value"]
+                else:
+                    value = self.maxMoveOrder(state, alpha, beta, 0)
             else:
-                value = self.minMoveOrder(state, alpha, beta, 1)
+                value = self.minMoveOrder(state, alpha, beta, 0)
             # """
 
-            value = state.computeEvaluation()
             state.current_state = copy.deepcopy(copy_state)
             sortMoves.addMove(x, value)
 
@@ -273,7 +276,7 @@ class checkers():
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(x[0], x[1])
 
-            """
+            # """
             tuple_grid = []
             for row in state.current_state:
                 tuple_grid.append(tuple(row))
@@ -281,12 +284,14 @@ class checkers():
 
             if hash(tuple_grid) in self.cache.moveOrderCache:
                 cacheValue = self.cache.getValue(hash(tuple_grid))
-                value = cacheValue["value"]
+                if alpha < cacheValue["value"] < beta:
+                    value = cacheValue["value"]
+                else:
+                    value = self.maxMoveOrder(state, alpha, beta, 0)
             else:
-                value = state.computeEvaluation()
+                value = self.maxMoveOrder(state, alpha, beta, 0)
             # """
 
-            value = state.computeEvaluation()
             state.current_state = copy.deepcopy(copy_state)
             sortMoves.addMove(x, value)
 
@@ -313,7 +318,7 @@ class checkers():
         return v
 
 
-class checkersStates():
+class CheckersStates:
     def __init__(self, state):
         self.current_state = state
 
@@ -608,8 +613,6 @@ class checkersStates():
         return False
 
     def updateLocation(self, oldLocation, newLocation):
-        updatedLocation = True
-
         old = oldLocation
         for currentUpdate in newLocation:
             capturedPiece = False
@@ -630,25 +633,20 @@ class checkersStates():
             if capturedPiece:
                 self.current_state[capturedLocation[0]][capturedLocation[1]] = "     "
 
-            if updatedLocation:
-                if self.current_state[old[0]][old[1]] == "HUMAN" or self.current_state[old[0]][old[1]] == "KingH":
-                    if currentUpdate[0] == 0:
-                        self.current_state[currentUpdate[0]][currentUpdate[1]] = "KingH"
-                    else:
-                        self.current_state[currentUpdate[0]][currentUpdate[1]] = self.current_state[old[0]][old[1]]
-                    self.current_state[old[0]][old[1]] = "     "
-                elif self.current_state[old[0]][old[1]] == "AGENT" or self.current_state[old[0]][old[1]] == "KingA":
-                    if currentUpdate[0] == 7:
-                        self.current_state[currentUpdate[0]][currentUpdate[1]] = "KingA"
-                    else:
-                        self.current_state[currentUpdate[0]][currentUpdate[1]] = self.current_state[old[0]][old[1]]
-                    self.current_state[old[0]][old[1]] = "     "
+            if self.current_state[old[0]][old[1]] == "HUMAN" or self.current_state[old[0]][old[1]] == "KingH":
+                if currentUpdate[0] == 0:
+                    self.current_state[currentUpdate[0]][currentUpdate[1]] = "KingH"
                 else:
-                    updatedLocation = False
+                    self.current_state[currentUpdate[0]][currentUpdate[1]] = self.current_state[old[0]][old[1]]
+                self.current_state[old[0]][old[1]] = "     "
+            elif self.current_state[old[0]][old[1]] == "AGENT" or self.current_state[old[0]][old[1]] == "KingA":
+                if currentUpdate[0] == 7:
+                    self.current_state[currentUpdate[0]][currentUpdate[1]] = "KingA"
+                else:
+                    self.current_state[currentUpdate[0]][currentUpdate[1]] = self.current_state[old[0]][old[1]]
+                self.current_state[old[0]][old[1]] = "     "
 
             old = currentUpdate
-
-        return updatedLocation
 
     def printBoard(self):
         print("-" * 90)
@@ -673,7 +671,7 @@ class checkersStates():
 
 if __name__ == "__main__":
     move_file = open("moves.txt", "w")
-    game = checkers()
+    game = Checkers()
     game.initializeGrid()
 
     print("\nWelcome to Checkers!\nPlease Enter [S] to Start...\n")
