@@ -85,7 +85,20 @@ class Checkers:
 
     def endGame(self):
         state = CheckersStates(self.grid_content)
-        return state.getStatistics()
+        agent_pieces, human_pieces, kings, men = state.countPieces()
+
+        if not state.checkMoves("HUMAN") and state.checkMoves("AGENT"):
+            winner = "Agent"
+        elif state.checkMoves("HUMAN") and not state.checkMoves("AGENT"):
+            winner = "Human"
+        elif human_pieces > agent_pieces:
+            winner = "Human"
+        elif human_pieces < agent_pieces:
+            winner = "Agent"
+        else:
+            winner = "Draw"
+
+        return {"Human": human_pieces, "Agent": agent_pieces, "Winner": winner}
 
     def getPossibleMoves(self, turn):
         copy_state = copy.deepcopy(self.grid_content)
@@ -122,6 +135,12 @@ class Checkers:
         self.grid_content = state.current_state
         # """
 
+    def orderingOption(self, num):
+        if num == 1 or num == 2:
+            self.moveOrderOption = num
+            return True
+        return False
+
     def alphaBeta(self, state):
         human_pieces = 0
         agent_pieces = 0
@@ -140,8 +159,10 @@ class Checkers:
         self.agent_move = []
 
         start_time = time.time()
-        # v = self.maxValue(state, -math.inf, math.inf, self.depthLimit)
-        v = self.maxMoveOrder(state, -math.inf, math.inf, self.depthLimit)
+        if self.moveOrderOption == 1:
+            v = self.maxMoveOrder(state, -math.inf, math.inf, self.depthLimit)
+        else:
+            v = self.maxValue(state, -math.inf, math.inf, self.depthLimit)
         end_time = time.time()
         total_time = end_time - start_time
 
@@ -220,7 +241,6 @@ class Checkers:
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(x[0], x[1])
 
-            # """
             tuple_grid = []
             for row in state.current_state:
                 tuple_grid.append(tuple(row))
@@ -234,7 +254,6 @@ class Checkers:
                     value = self.maxMoveOrder(state, alpha, beta, 0)
             else:
                 value = self.minMoveOrder(state, alpha, beta, 0)
-            # """
 
             state.current_state = copy.deepcopy(copy_state)
             sortMoves.addMove(x, value)
@@ -276,7 +295,6 @@ class Checkers:
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(x[0], x[1])
 
-            # """
             tuple_grid = []
             for row in state.current_state:
                 tuple_grid.append(tuple(row))
@@ -290,7 +308,6 @@ class Checkers:
                     value = self.maxMoveOrder(state, alpha, beta, 0)
             else:
                 value = self.maxMoveOrder(state, alpha, beta, 0)
-            # """
 
             state.current_state = copy.deepcopy(copy_state)
             sortMoves.addMove(x, value)
@@ -322,30 +339,7 @@ class CheckersStates:
     def __init__(self, state):
         self.current_state = state
 
-    def getStatistics(self):
-        human_pieces = 0
-        agent_pieces = 0
-        for row in range(len(self.current_state)):
-            for col in range(len(self.current_state[row])):
-                if self.current_state[row][col] == "HUMAN" or self.current_state[row][col] == "KingH":
-                    human_pieces += 1
-                elif self.current_state[row][col] == "AGENT" or self.current_state[row][col] == "KingA":
-                    agent_pieces += 1
-
-        if not self.checkMoves("HUMAN") and self.checkMoves("AGENT"):
-            winner = "Agent"
-        elif self.checkMoves("HUMAN") and not self.checkMoves("AGENT"):
-            winner = "Human"
-        elif human_pieces > agent_pieces:
-            winner = "Human"
-        elif human_pieces < agent_pieces:
-            winner = "Agent"
-        else:
-            winner = "Draw"
-
-        return {"Human": human_pieces, "Agent": agent_pieces, "Winner": winner}
-
-    def computeUtility(self):
+    def countPieces(self):
         kings = 0
         men = 0
         for row in self.current_state:
@@ -361,35 +355,18 @@ class CheckersStates:
                 elif self.current_state[row][col] == "AGENT" or self.current_state[row][col] == "KingA":
                     agent_pieces += 1
 
+        return agent_pieces, human_pieces, kings, men
+
+    def computeUtility(self):
+        agent_pieces, human_pieces, kings, men = self.countPieces()
         return ((agent_pieces - human_pieces) * 100) + (kings * 50) + (men * 20)
 
     def computeEvaluation(self):
-        kings = 0
-        men = 0
-        for row in self.current_state:
-            kings += row.count("KingA")
-            men += row.count("AGENT")
-
-        human_pieces = 0
-        agent_pieces = 0
-        for row in range(len(self.current_state)):
-            for col in range(len(self.current_state[row])):
-                if self.current_state[row][col] == "HUMAN" or self.current_state[row][col] == "KingH":
-                    human_pieces += 1
-                elif self.current_state[row][col] == "AGENT" or self.current_state[row][col] == "KingA":
-                    agent_pieces += 1
-
+        agent_pieces, human_pieces, kings, men = self.countPieces()
         return ((agent_pieces - human_pieces) * 50) + (kings * 25) + (men * 10)
 
     def checkTerminal(self):
-        human_pieces = 0
-        agent_pieces = 0
-        for row in range(len(self.current_state)):
-            for col in range(len(self.current_state[row])):
-                if self.current_state[row][col] == "HUMAN" or self.current_state[row][col] == "KingH":
-                    human_pieces += 1
-                elif self.current_state[row][col] == "AGENT" or self.current_state[row][col] == "KingA":
-                    agent_pieces += 1
+        agent_pieces, human_pieces, kings, men = self.countPieces()
 
         if not self.checkMoves("HUMAN") and not self.checkMoves("AGENT"):
             return True
@@ -674,17 +651,27 @@ if __name__ == "__main__":
     game = Checkers()
     game.initializeGrid()
 
-    print("\nWelcome to Checkers!\nPlease Enter [S] to Start...\n")
+    print("\nWelcome to Checkers!\nPlease Select an Option:\n")
 
+    option_num = ""
+    while option_num != "1" and option_num != "2":
+        print("[1] With Move Ordering\n[2] Without Move Ordering\n")
+        option_num = input("Move Ordering Option:\t")
+        if option_num != "1" and option_num != "2":
+            print("Invalid Key!\nPlease Select an Option:\n")
+        if not game.orderingOption(int(option_num)):
+            print("Invalid Key!\nPlease Select an Option:\n")
+
+    print("\nPlease Enter [S] to Start...\n")
     key_input = ""
     while key_input.lower() != "s":
         key_input = input()
         if key_input.lower() != "s":
             print("Invalid Key! Please Enter [S] to Start...\n")
 
-    # os.system("cls" if os.name == "nt" else "clear")
     game_continue = True
     human_turn = False
+
     while game_continue:
         os.system("cls" if os.name == "nt" else "clear")
 
