@@ -85,20 +85,20 @@ class Checkers:
 
     def endGame(self):
         state = CheckersStates(self.grid_content)
-        agent_pieces, human_pieces, kings, men = state.countPieces()
+        stats = state.countPieces()
 
         if not state.checkMoves("HUMAN") and state.checkMoves("AGENT"):
             winner = "Agent"
         elif state.checkMoves("HUMAN") and not state.checkMoves("AGENT"):
             winner = "Human"
-        elif human_pieces > agent_pieces:
+        elif stats["humans"] > stats["agents"]:
             winner = "Human"
-        elif human_pieces < agent_pieces:
+        elif stats["humans"] < stats["agents"]:
             winner = "Agent"
         else:
             winner = "Draw"
 
-        return {"Human": human_pieces, "Agent": agent_pieces, "Winner": winner}
+        return {"Human": stats["humans"], "Agent": stats["agents"], "Winner": winner}
 
     def getPossibleMoves(self, turn):
         copy_state = copy.deepcopy(self.grid_content)
@@ -120,14 +120,15 @@ class Checkers:
         state = CheckersStates(self.grid_content)
         copy_state = copy.deepcopy(self.grid_content)
         # """
-        agent_type, agent_move = self.alphaBeta(state)
+        agent_move = self.alphaBeta(state)
         self.grid_content = copy_state
         state.current_state = copy_state
         print(agent_move)
         state.updateLocation(agent_move[0], agent_move[1])
         self.grid_content = state.current_state
         """
-        typeMove, possible_states = state.getStates("AGENT")
+        possMoves = state.getStates("HUMAN")
+        possible_states = possMoves["possibleMoves"]
         self.grid_content = copy_state
         agent_move = possible_states[random.randrange(len(possible_states))]
         print(agent_move)
@@ -155,7 +156,6 @@ class Checkers:
         self.numNodes = 0
         self.maxPruning = 0
         self.minPruning = 0
-        self.agent_move_type = ""
         self.agent_move = []
 
         start_time = time.time()
@@ -178,7 +178,7 @@ class Checkers:
         print(total_time, "\t", v, "\t", self.numNodes,"\t", self.maxPruning, "\t0\t", self.minPruning, "\t0\t", file=self.stats_file)
         # """
 
-        return self.agent_move_type, self.agent_move
+        return self.agent_move
 
     def maxValue(self, state, alpha, beta, depthLimit):
         if state.checkTerminal():
@@ -188,7 +188,8 @@ class Checkers:
 
         self.numNodes += 1
         v = -math.inf
-        typeMove, possibleMoves = state.getStates("AGENT")
+        possMoves = state.getStates("AGENT")
+        possibleMoves = possMoves["possibleMoves"]
         for a in possibleMoves:
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(a[0], a[1])
@@ -199,9 +200,9 @@ class Checkers:
                 alpha = max(alpha, v)
                 if depthLimit == self.depthLimit:
                     self.agent_move = a
-                    self.agent_move_type = typeMove
             if v >= beta:
-                self.maxPruning += 1
+                pruned = len(possibleMoves) - possibleMoves.index(a)
+                self.maxPruning += pruned
                 return v
 
         return v
@@ -214,7 +215,8 @@ class Checkers:
 
         self.numNodes += 1
         v = math.inf
-        typeMove, possibleMoves = state.getStates("HUMAN")
+        possMoves = state.getStates("HUMAN")
+        possibleMoves = possMoves["possibleMoves"]
         for a in possibleMoves:
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(a[0], a[1])
@@ -224,7 +226,8 @@ class Checkers:
                 v = v2
                 beta = min(beta, v)
             if v <= alpha:
-                self.minPruning += 1
+                pruned = len(possibleMoves) - possibleMoves.index(a)
+                self.minPruning += pruned
                 return v
 
         return v
@@ -235,7 +238,8 @@ class Checkers:
         if depthLimit == 0:
             return state.computeEvaluation()
 
-        typeMove, possibleMoves = state.getStates("AGENT")
+        possMoves = state.getStates("AGENT")
+        possibleMoves = possMoves["possibleMoves"]
         sortMoves = SortMoves(len(possibleMoves))
         for x in possibleMoves:
             copy_state = copy.deepcopy(state.current_state)
@@ -270,9 +274,9 @@ class Checkers:
                 alpha = max(alpha, v)
                 if depthLimit == self.depthLimit:
                     self.agent_move = a
-                    self.agent_move_type = typeMove
             if v >= beta:
-                self.maxPruning += 1
+                pruned = len(possibleMoves) - possibleMoves.index(a)
+                self.maxPruning += pruned
                 return v
 
             tuple_grid = []
@@ -289,7 +293,8 @@ class Checkers:
         if depthLimit == 0:
             return state.computeEvaluation()
 
-        typeMove, possibleMoves = state.getStates("HUMAN")
+        possMoves = state.getStates("HUMAN")
+        possibleMoves = possMoves["possibleMoves"]
         sortMoves = SortMoves(len(possibleMoves))
         for x in possibleMoves:
             copy_state = copy.deepcopy(state.current_state)
@@ -323,7 +328,8 @@ class Checkers:
                 v = v2
                 beta = min(beta, v)
             if v <= alpha:
-                self.minPruning += 1
+                pruned = len(possibleMoves) - possibleMoves.index(a)
+                self.minPruning += pruned
                 return v
 
             tuple_grid = []
@@ -340,11 +346,11 @@ class CheckersStates:
         self.current_state = state
 
     def countPieces(self):
-        kings = 0
-        men = 0
+        agent_kings = 0
+        human_kings = 0
         for row in self.current_state:
-            kings += row.count("KingA")
-            men += row.count("AGENT")
+            agent_kings += row.count("KingA")
+            human_kings += row.count("KingH")
 
         human_pieces = 0
         agent_pieces = 0
@@ -355,22 +361,26 @@ class CheckersStates:
                 elif self.current_state[row][col] == "AGENT" or self.current_state[row][col] == "KingA":
                     agent_pieces += 1
 
-        return agent_pieces, human_pieces, kings, men
+        return {"agents": agent_pieces, "humans": human_pieces, "kingA": agent_kings, "kingH": human_kings}
 
     def computeUtility(self):
-        agent_pieces, human_pieces, kings, men = self.countPieces()
-        return ((agent_pieces - human_pieces) * 100) + (kings * 50) + (men * 20)
+        pieces = self.countPieces()
+        num_pieces = pieces["agents"] - pieces["humans"]
+        king_pieces = pieces["kingA"] - pieces["kingH"]
+        return (num_pieces + king_pieces) * 100
 
     def computeEvaluation(self):
-        agent_pieces, human_pieces, kings, men = self.countPieces()
-        return ((agent_pieces - human_pieces) * 50) + (kings * 25) + (men * 10)
+        pieces = self.countPieces()
+        num_pieces = pieces["agents"] - pieces["humans"]
+        king_pieces = pieces["kingA"] - pieces["kingH"]
+        return (num_pieces + king_pieces) * 10
 
     def checkTerminal(self):
-        agent_pieces, human_pieces, kings, men = self.countPieces()
+        pieces = self.countPieces()
 
         if not self.checkMoves("HUMAN") and not self.checkMoves("AGENT"):
             return True
-        elif human_pieces == 0 or agent_pieces == 0:
+        elif pieces["humans"] == 0 or pieces["agents"] == 0:
             return True
         return False
 
@@ -477,13 +487,13 @@ class CheckersStates:
 
         for current in player_locations:
             if self.checkValidMove(current, [current[0] - 1, current[1] - 1], self.current_state[current[0]][current[1]]):
-                moveStates.append([tuple(current), [(current[0] - 1, current[1] - 1)]])
+                moveStates.append([current, [[current[0] - 1, current[1] - 1]]])
             if self.checkValidMove(current, [current[0] - 1, current[1] + 1], self.current_state[current[0]][current[1]]):
-                moveStates.append([tuple(current), [(current[0] - 1, current[1] + 1)]])
+                moveStates.append([current, [[current[0] - 1, current[1] + 1]]])
             if self.checkValidMove(current, [current[0] + 1, current[1] - 1], self.current_state[current[0]][current[1]]):
-                moveStates.append([tuple(current), [(current[0] + 1, current[1] - 1)]])
+                moveStates.append([current, [[current[0] + 1, current[1] - 1]]])
             if self.checkValidMove(current, [current[0] + 1, current[1] + 1], self.current_state[current[0]][current[1]]):
-                moveStates.append([tuple(current), [(current[0] + 1, current[1] + 1)]])
+                moveStates.append([current, [[current[0] + 1, current[1] + 1]]])
 
             copy_state = copy.deepcopy(self.current_state)
             capture_dirs = [(-2, -2), (-2, 2), (2, -2), (2, 2)]
@@ -520,26 +530,10 @@ class CheckersStates:
                     captureStates.append([current, captures])
         if len(captureStates) > 0:
             # random.shuffle(captureStates)
-            possibleCaptures = []
-            for x in captureStates:
-                move_content = [tuple(x[0])]
-                locs = []
-                for y in x[1]:
-                    locs.append(tuple(y))
-                move_content.append(locs)
-                possibleCaptures.append(move_content)
-
-            for x in range(len(possibleCaptures)):
-                possibleCaptures[x][1] = tuple(possibleCaptures[x][1])
-                possibleCaptures[x] = tuple(possibleCaptures[x])
-
-            return "CAPTURE", possibleCaptures
+            return {"typeMove": "CAPTURE", "possibleMoves": captureStates}
         else:
             # random.shuffle(moveStates)
-            for x in range(len(moveStates)):
-                moveStates[x][1] = tuple(moveStates[x][1])
-                moveStates[x] = tuple(moveStates[x])
-            return "FORWARD", moveStates
+            return {"typeMove": "FORWARD", "possibleMoves": moveStates}
 
     def getCaptureStates(self, current):
         curr_move = "FORWARD"
@@ -680,7 +674,10 @@ if __name__ == "__main__":
                 print("To exit the game, Enter [EXIT]\n\n")
                 print("\nEnter the Option Number of the Piece in the following format: [Option Number]\n\n")
 
-                typeMove, possibleMoves = game.getPossibleMoves("HUMAN")
+                possMoves = game.getPossibleMoves("HUMAN")
+                typeMove = possMoves["typeMove"]
+                possibleMoves = possMoves["possibleMoves"]
+
                 possibleMoves.sort()
                 print("\t", typeMove, " MOVES")
                 print("[#]  PIECE  |  MOVES")
