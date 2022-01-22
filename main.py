@@ -652,8 +652,8 @@ if __name__ == "__main__":
         print("[1] With Move Ordering\n[2] Without Move Ordering\n")
         option_num = input("Move Ordering Option:\t")
         if option_num != "1" and option_num != "2":
-            print("Invalid Key!\nPlease Select an Option:\n")
-        if not game.orderingOption(int(option_num)):
+            print("\nInvalid Key!\nPlease Select an Option:\n")
+        elif not game.orderingOption(int(option_num)):
             print("Invalid Key!\nPlease Select an Option:\n")
 
     print("\nPlease Enter [S] to Start...\n")
