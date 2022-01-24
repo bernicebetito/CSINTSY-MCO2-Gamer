@@ -2,23 +2,22 @@ import math, os, time, random, copy
 
 
 class SortMoves:
-    def __init__(self, moveSize):
-        self.sortedMoves = [[0, 0] for _ in range(moveSize)]
-        self.sizeSorted = 0
+    def __init__(self):
+        self.sortedMoves = []
 
     def addMove(self, move, value):
-        index = self.sizeSorted
-        if index > 0:
-            while index and self.sortedMoves[index - 1][1] > value:
-                index -= 1
-                if index > 0:
-                    self.sortedMoves[index] = self.sortedMoves[index - 1]
-        self.sortedMoves[index] = [move, value]
-        self.sizeSorted += 1
+        self.sortedMoves.append([move, value])
 
-    def getMoves(self):
+    def getMaxMoves(self):
         ordered = []
-        self.sortedMoves = list(filter(([0, 0]).__ne__, self.sortedMoves))
+        sorted(self.sortedMoves, key=lambda x: x[1], reverse=True)
+        for x in self.sortedMoves:
+            ordered.append(x[0])
+        return ordered
+
+    def getMinMoves(self):
+        ordered = []
+        sorted(self.sortedMoves, key=lambda x: x[1])
         for x in self.sortedMoves:
             ordered.append(x[0])
         return ordered
@@ -240,31 +239,25 @@ class Checkers:
 
         possMoves = state.getStates("AGENT")
         possibleMoves = possMoves["possibleMoves"]
-        sortMoves = SortMoves(len(possibleMoves))
+        sortMoves = SortMoves()
         for x in possibleMoves:
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(x[0], x[1])
 
-            tuple_grid = []
-            for row in state.current_state:
-                tuple_grid.append(tuple(row))
-            tuple_grid = tuple(tuple_grid)
-            
-            if hash(tuple_grid) in self.cache.moveOrderCache:
-                cacheValue = self.cache.getValue(hash(tuple_grid))
-                if alpha < cacheValue["value"] < beta:
-                    value = cacheValue["value"]
-                else:
-                    value = self.maxMoveOrder(state, alpha, beta, 0)
+            # """
+            if hash(tuple(x)) in self.cache.moveOrderCache:
+                cacheValue = self.cache.getValue(hash(tuple(x)))
+                value = cacheValue["value"]
             else:
-                value = self.minMoveOrder(state, alpha, beta, 0)
+                value = state.computeEvaluation()
+            # """
 
             state.current_state = copy.deepcopy(copy_state)
             sortMoves.addMove(x, value)
 
         self.numNodes += 1
         v = -math.inf
-        for a in sortMoves.getMoves():
+        for a in sortMoves.getMaxMoves():
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(a[0], a[1])
             v2 = self.minMoveOrder(state, alpha, beta, depthLimit - 1)
@@ -274,17 +267,13 @@ class Checkers:
                 alpha = max(alpha, v)
                 if depthLimit == self.depthLimit:
                     self.agent_move = a
+                bestMove = tuple(a)
             if v >= beta:
                 pruned = len(possibleMoves) - possibleMoves.index(a)
                 self.maxPruning += pruned
                 return v
 
-            tuple_grid = []
-            for row in state.current_state:
-                tuple_grid.append(tuple(row))
-            tuple_grid = tuple(tuple_grid)
-            self.cache.insertValue(hash(tuple_grid), v)
-
+        self.cache.insertValue(hash(bestMove), v)
         return v
 
     def minMoveOrder(self, state, alpha, beta, depthLimit):
@@ -295,31 +284,25 @@ class Checkers:
 
         possMoves = state.getStates("HUMAN")
         possibleMoves = possMoves["possibleMoves"]
-        sortMoves = SortMoves(len(possibleMoves))
+        sortMoves = SortMoves()
         for x in possibleMoves:
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(x[0], x[1])
 
-            tuple_grid = []
-            for row in state.current_state:
-                tuple_grid.append(tuple(row))
-            tuple_grid = tuple(tuple_grid)
-
-            if hash(tuple_grid) in self.cache.moveOrderCache:
-                cacheValue = self.cache.getValue(hash(tuple_grid))
-                if alpha < cacheValue["value"] < beta:
-                    value = cacheValue["value"]
-                else:
-                    value = self.maxMoveOrder(state, alpha, beta, 0)
+            # """
+            if hash(tuple(x)) in self.cache.moveOrderCache:
+                cacheValue = self.cache.getValue(hash(tuple(x)))
+                value = cacheValue["value"]
             else:
-                value = self.maxMoveOrder(state, alpha, beta, 0)
+                value = state.computeEvaluation()
+            # """
 
             state.current_state = copy.deepcopy(copy_state)
             sortMoves.addMove(x, value)
 
         self.numNodes += 1
         v = math.inf
-        for a in sortMoves.getMoves():
+        for a in sortMoves.getMinMoves():
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(a[0], a[1])
             v2 = self.maxMoveOrder(state, alpha, beta, depthLimit - 1)
@@ -331,12 +314,6 @@ class Checkers:
                 pruned = len(possibleMoves) - possibleMoves.index(a)
                 self.minPruning += pruned
                 return v
-
-            tuple_grid = []
-            for row in state.current_state:
-                tuple_grid.append(tuple(row))
-            tuple_grid = tuple(tuple_grid)
-            self.cache.insertValue(hash(tuple_grid), v)
 
         return v
 
@@ -367,13 +344,13 @@ class CheckersStates:
         pieces = self.countPieces()
         num_pieces = pieces["agents"] - pieces["humans"]
         king_pieces = pieces["kingA"] - pieces["kingH"]
-        return (num_pieces + king_pieces) * 100
+        return ((num_pieces * 100) + (king_pieces * 50)) * 100
 
     def computeEvaluation(self):
         pieces = self.countPieces()
         num_pieces = pieces["agents"] - pieces["humans"]
         king_pieces = pieces["kingA"] - pieces["kingH"]
-        return (num_pieces + king_pieces) * 10
+        return ((num_pieces * 100) + (king_pieces * 50)) * 5
 
     def checkTerminal(self):
         pieces = self.countPieces()
@@ -529,10 +506,26 @@ class CheckersStates:
                     self.current_state = copy.deepcopy(copy_state)
                     captureStates.append([current, captures])
         if len(captureStates) > 0:
-            # random.shuffle(captureStates)
-            return {"typeMove": "CAPTURE", "possibleMoves": captureStates}
+            random.shuffle(captureStates)
+            possibleCaptures = []
+            for x in captureStates:
+                move_content = [tuple(x[0])]
+                locs = []
+                for y in x[1]:
+                    locs.append(tuple(y))
+                move_content.append(locs)
+                possibleCaptures.append(move_content)
+
+            for x in range(len(possibleCaptures)):
+                move = [tuple(possibleCaptures[x][1][y]) for y in range(len(possibleCaptures[x][1]))]
+                possibleCaptures[x] = (tuple(possibleCaptures[x][0]), tuple(move))
+            return {"typeMove": "CAPTURE", "possibleMoves": possibleCaptures}
         else:
-            # random.shuffle(moveStates)
+            random.shuffle(moveStates)
+            for x in range(len(moveStates)):
+                move = [tuple(moveStates[x][1][0])]
+                moveStates[x] = (tuple(moveStates[x][0]), tuple(move))
+
             return {"typeMove": "FORWARD", "possibleMoves": moveStates}
 
     def getCaptureStates(self, current):
