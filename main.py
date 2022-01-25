@@ -10,14 +10,14 @@ class SortMoves:
 
     def getMaxMoves(self):
         ordered = []
-        sorted(self.sortedMoves, key=lambda x: x[1], reverse=True)
+        self.sortedMoves = sorted(self.sortedMoves, key=lambda x: x[1], reverse=True)
         for x in self.sortedMoves:
             ordered.append(x[0])
         return ordered
 
     def getMinMoves(self):
         ordered = []
-        sorted(self.sortedMoves, key=lambda x: x[1])
+        self.sortedMoves = sorted(self.sortedMoves, key=lambda x: x[1])
         for x in self.sortedMoves:
             ordered.append(x[0])
         return ordered
@@ -48,9 +48,9 @@ class Checkers:
             row_content = []
             for column in range(8):
                 if row % 2 == 0:
-                    comparison = 1
-                else:
                     comparison = 0
+                else:
+                    comparison = 1
                 if column % 2 == comparison:
                     row_content.append("     ")
                 else:
@@ -138,6 +138,10 @@ class Checkers:
     def orderingOption(self, num):
         if num == 1 or num == 2:
             self.moveOrderOption = num
+            if num == 1:
+                self.stats_file = open("stats_move_order.txt", "w")
+            else:
+                self.stats_file = open("stats_without.txt", "w")
             return True
         return False
 
@@ -240,6 +244,7 @@ class Checkers:
         possMoves = state.getStates("AGENT")
         possibleMoves = possMoves["possibleMoves"]
         sortMoves = SortMoves()
+
         for x in possibleMoves:
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(x[0], x[1])
@@ -323,6 +328,9 @@ class CheckersStates:
         self.current_state = state
 
     def countPieces(self):
+        agent = ("AGENT", "KingA")
+        human = ("HUMAN", "KingH")
+
         agent_kings = 0
         human_kings = 0
         for row in self.current_state:
@@ -333,29 +341,45 @@ class CheckersStates:
         agent_pieces = 0
         for row in range(len(self.current_state)):
             for col in range(len(self.current_state[row])):
-                if self.current_state[row][col] == "HUMAN" or self.current_state[row][col] == "KingH":
+                if self.current_state[row][col] in human:
                     human_pieces += 1
-                elif self.current_state[row][col] == "AGENT" or self.current_state[row][col] == "KingA":
+                elif self.current_state[row][col] in agent:
                     agent_pieces += 1
 
-        return {"agents": agent_pieces, "humans": human_pieces, "kingA": agent_kings, "kingH": human_kings}
+        back_pieces = 0
+        if self.current_state[0][1] in agent:
+            back_pieces += 1
+        if self.current_state[0][5] in agent:
+            back_pieces += 1
+        if self.current_state[7][2] not in human:
+            back_pieces += 1
+        if self.current_state[7][6] not in human:
+            back_pieces += 1
+
+        return {"agents": agent_pieces, "humans": human_pieces, "kingA": agent_kings, "kingH": human_kings, "back": back_pieces}
 
     def computeUtility(self):
         pieces = self.countPieces()
+
         num_pieces = pieces["agents"] - pieces["humans"]
         king_pieces = pieces["kingA"] - pieces["kingH"]
-        return ((num_pieces * 100) + (king_pieces * 50)) * 100
+        back_pieces = pieces["back"]
+
+        return ((num_pieces * 100) + (king_pieces * 50) + (back_pieces * 5)) * 100
 
     def computeEvaluation(self):
         pieces = self.countPieces()
+
         num_pieces = pieces["agents"] - pieces["humans"]
         king_pieces = pieces["kingA"] - pieces["kingH"]
-        return ((num_pieces * 100) + (king_pieces * 50)) * 5
+        back_pieces = pieces["back"]
+
+        return ((num_pieces * 100) + (king_pieces * 50) + (back_pieces * 5)) * 5
 
     def checkTerminal(self):
         pieces = self.countPieces()
 
-        if not self.checkMoves("HUMAN") and not self.checkMoves("AGENT"):
+        if not self.checkMoves("HUMAN") or not self.checkMoves("AGENT"):
             return True
         elif pieces["humans"] == 0 or pieces["agents"] == 0:
             return True
@@ -369,9 +393,9 @@ class CheckersStates:
             return False
         if piece[0] < 0 or piece[0] > 7 or piece[1] < 0 or piece[1] > 7:
             return False
-        if (location[0] % 2 == 1 and location[1] % 2 == 0) or (location[0] % 2 == 0 and location[1] % 2 == 1):
+        if (location[0] % 2 == 0 and location[1] % 2 == 0) or (location[0] % 2 == 1 and location[1] % 2 == 1):
             return False
-        if (piece[0] % 2 == 1 and piece[1] % 2 == 0) or (piece[0] % 2 == 0 and piece[1] % 2 == 1):
+        if (piece[0] % 2 == 0 and piece[1] % 2 == 0) or (piece[0] % 2 == 1 and piece[1] % 2 == 1):
             return False
         if self.current_state[piece[0]][piece[1]] not in human_pieces and (turn == "HUMAN" or turn == "KingH"):
             return False
@@ -442,8 +466,7 @@ class CheckersStates:
                             return True
                 return False
             return False
-        else:
-            return False
+        return False
 
     def getStates(self, turn):
         moveStates = []
@@ -506,7 +529,7 @@ class CheckersStates:
                     self.current_state = copy.deepcopy(copy_state)
                     captureStates.append([current, captures])
         if len(captureStates) > 0:
-            random.shuffle(captureStates)
+            # random.shuffle(captureStates)
             possibleCaptures = []
             for x in captureStates:
                 move_content = [tuple(x[0])]
@@ -521,7 +544,7 @@ class CheckersStates:
                 possibleCaptures[x] = (tuple(possibleCaptures[x][0]), tuple(move))
             return {"typeMove": "CAPTURE", "possibleMoves": possibleCaptures}
         else:
-            random.shuffle(moveStates)
+            # random.shuffle(moveStates)
             for x in range(len(moveStates)):
                 move = [tuple(moveStates[x][1][0])]
                 moveStates[x] = (tuple(moveStates[x][0]), tuple(move))
@@ -634,35 +657,37 @@ class CheckersStates:
 
 
 if __name__ == "__main__":
-    move_file = open("moves.txt", "w")
     game = Checkers()
     game.initializeGrid()
 
     print("\nWelcome to Checkers!\nPlease Select an Option:\n")
 
-    option_num = ""
-    while option_num != "1" and option_num != "2":
-        print("[1] With Move Ordering\n[2] Without Move Ordering\n")
-        option_num = input("Move Ordering Option:\t")
-        if option_num != "1" and option_num != "2":
-            print("\nInvalid Key!\nPlease Select an Option:\n")
-        elif not game.orderingOption(int(option_num)):
-            print("Invalid Key!\nPlease Select an Option:\n")
+    try:
+        option_num = ""
+        while option_num != "1" and option_num != "2":
+            print("[1] With Move Ordering\n[2] Without Move Ordering\n")
+            option_num = input("Move Ordering Option:\t")
+            if option_num != "1" and option_num != "2":
+                print("\nInvalid Key!\nPlease Select an Option:\n")
+            elif not game.orderingOption(int(option_num)):
+                print("Invalid Key!\nPlease Select an Option:\n")
 
-    print("\nPlease Enter [S] to Start...\n")
-    key_input = ""
-    while key_input.lower() != "s":
-        key_input = input()
-        if key_input.lower() != "s":
-            print("Invalid Key! Please Enter [S] to Start...\n")
+        if int(option_num) == 1:
+            move_file = open("moves_move_order.txt", "w")
+        else:
+            move_file = open("moves_without.txt", "w")
 
-    game_continue = True
-    human_turn = False
+        print("\nPlease Enter [S] to Start...\n")
+        key_input = ""
+        while key_input.lower() != "s":
+            key_input = input()
+            if key_input.lower() != "s":
+                print("Invalid Key! Please Enter [S] to Start...\n")
 
-    while game_continue:
-        os.system("cls" if os.name == "nt" else "clear")
+        game_continue = True
+        human_turn = False
 
-        if game.gameContinue():
+        while game.gameContinue() and game_continue:
             if human_turn:
                 print("To exit the game, Enter [EXIT]\n\n")
                 print("\nEnter the Option Number of the Piece in the following format: [Option Number]\n\n")
@@ -675,7 +700,8 @@ if __name__ == "__main__":
                 print("\t", typeMove, " MOVES")
                 print("[#]  PIECE  |  MOVES")
                 for curr_piece in range(len(possibleMoves)):
-                    piece_formatted = chr(possibleMoves[curr_piece][0][0] + 65) + str(possibleMoves[curr_piece][0][1] + 1)
+                    piece_formatted = chr(possibleMoves[curr_piece][0][0] + 65) + str(
+                        possibleMoves[curr_piece][0][1] + 1)
                     print("[{}]    {:<2}   | ".format(curr_piece + 1, piece_formatted), end="")
 
                     for curr_move in possibleMoves[curr_piece][1]:
@@ -705,7 +731,8 @@ if __name__ == "__main__":
                                 valid_move = False
                                 print("\nInvalid Option Number! Please enter a Valid Option Number.\n")
                             else:
-                                piece_print = chr(possibleMoves[int(user_move) - 1][0][0] + 65) + str(possibleMoves[int(user_move) - 1][0][1] + 1)
+                                piece_print = chr(possibleMoves[int(user_move) - 1][0][0] + 65) + str(
+                                    possibleMoves[int(user_move) - 1][0][1] + 1)
                                 moves_print = ""
 
                                 for curr_move in possibleMoves[int(user_move) - 1][1]:
@@ -726,25 +753,26 @@ if __name__ == "__main__":
                 game.agentTurn()
                 time.sleep(2)
                 human_turn = True
+            os.system("cls" if os.name == "nt" else "clear")
+
+        print("\n\n")
+        print("=" * 90, end="\n")
+        print(" " * 38, " GAME ENDED ", " " * 38)
+        print("=" * 90, end="\n")
+
+        gameStats = game.endGame()
+        print("\n\n")
+        print("-" * 38, " STATISTICS ", "-" * 38, end="\n")
+        print("Number of Agent Pieces Remaining: ", gameStats["Agent"])
+        print("Number of Human Pieces Remaining: ", gameStats["Human"], end="\n\n")
+
+        if gameStats["Winner"] != "Draw":
+            winner = " " + gameStats["Winner"] + " won! "
         else:
-            game_continue = False
+            winner = " " + gameStats["Winner"] + " between Agent and Human! "
+        print(" " * int((90 - len(winner)) / 2), winner, " " * int((90 - len(winner)) / 2))
+        print("-" * 90, end="\n\n")
 
-    print("\n\n")
-    print("=" * 90, end="\n")
-    print(" " * 38, " GAME ENDED ", " " * 38)
-    print("=" * 90, end="\n")
-
-    gameStats = game.endGame()
-    print("\n\n")
-    print("-" * 38, " STATISTICS ", "-" * 38, end="\n")
-    print("Number of Agent Pieces Remaining: ", gameStats["Agent"])
-    print("Number of Human Pieces Remaining: ", gameStats["Human"], end="\n\n")
-
-    if gameStats["Winner"] != "Draw":
-        winner = " " + gameStats["Winner"] + " won! "
-    else:
-        winner = " " + gameStats["Winner"] + " between Agent and Human! "
-    print(" " * int((90 - len(winner)) / 2), winner, " " * int((90 - len(winner)) / 2))
-    print("-" * 90, end="\n\n")
-
-    print(" " * 29, "Thank you for playing Checkers!", " " * 30)
+        print(" " * 29, "Thank you for playing Checkers!", " " * 30)
+    except KeyboardInterrupt:
+        print("\n\nThank you for playing Checkers!")
