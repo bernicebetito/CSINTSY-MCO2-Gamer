@@ -8,16 +8,9 @@ class SortMoves:
     def addMove(self, move, value):
         self.sortedMoves.append([move, value])
 
-    def getMaxMoves(self):
+    def getMoves(self):
         ordered = []
         self.sortedMoves = sorted(self.sortedMoves, key=lambda x: x[1], reverse=True)
-        for x in self.sortedMoves:
-            ordered.append(x[0])
-        return ordered
-
-    def getMinMoves(self):
-        ordered = []
-        self.sortedMoves = sorted(self.sortedMoves, key=lambda x: x[1])
         for x in self.sortedMoves:
             ordered.append(x[0])
         return ordered
@@ -41,7 +34,6 @@ class Checkers:
     def __init__(self):
         self.grid_content = []
         self.cache = TranspositionTable()
-        self.stats_file = open("stats.txt", "w")
 
     def initializeGrid(self):
         for row in range(8):
@@ -139,9 +131,9 @@ class Checkers:
         if num == 1 or num == 2:
             self.moveOrderOption = num
             if num == 1:
-                self.stats_file = open("stats_move_order.txt", "w")
-            else:
                 self.stats_file = open("stats_without.txt", "w")
+            else:
+                self.stats_file = open("stats_move_order.txt", "w")
             return True
         return False
 
@@ -160,12 +152,13 @@ class Checkers:
         self.maxPruning = 0
         self.minPruning = 0
         self.agent_move = []
+        self.human_move = []
 
         start_time = time.time()
         if self.moveOrderOption == 1:
-            v = self.maxMoveOrder(state, -math.inf, math.inf, self.depthLimit)
-        else:
             v = self.maxValue(state, -math.inf, math.inf, self.depthLimit)
+        else:
+            v = self.maxMoveOrder(state, -math.inf, math.inf, self.depthLimit)
         end_time = time.time()
         total_time = end_time - start_time
 
@@ -177,8 +170,7 @@ class Checkers:
         print("total time: ", total_time)
 
         # """
-        # print("v\tn\tMAX\tMIN", file=self.stats_file)
-        print(total_time, "\t", v, "\t", self.numNodes,"\t", self.maxPruning, "\t0\t", self.minPruning, "\t0\t", file=self.stats_file)
+        print(f"{total_time}\t{v}\t{self.numNodes}\t{self.maxPruning + self.minPruning}\t{self.maxPruning}\t0\t{self.minPruning}\t0", file=self.stats_file)
         # """
 
         return self.agent_move
@@ -262,7 +254,7 @@ class Checkers:
 
         self.numNodes += 1
         v = -math.inf
-        for a in sortMoves.getMaxMoves():
+        for a in sortMoves.getMoves():
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(a[0], a[1])
             v2 = self.minMoveOrder(state, alpha, beta, depthLimit - 1)
@@ -307,7 +299,7 @@ class Checkers:
 
         self.numNodes += 1
         v = math.inf
-        for a in sortMoves.getMinMoves():
+        for a in sortMoves.getMoves():
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(a[0], a[1])
             v2 = self.maxMoveOrder(state, alpha, beta, depthLimit - 1)
@@ -315,6 +307,8 @@ class Checkers:
             if v2 < v:
                 v = v2
                 beta = min(beta, v)
+                if depthLimit == self.depthLimit - 1:
+                    self.human_move = a
             if v <= alpha:
                 pruned = len(possibleMoves) - possibleMoves.index(a)
                 self.minPruning += pruned
@@ -346,6 +340,12 @@ class CheckersStates:
                 elif self.current_state[row][col] in agent:
                     agent_pieces += 1
 
+        center_pieces = 0
+        for row in range(1, len(self.current_state)):
+            for col in range(1, len(self.current_state[row])):
+                if self.current_state[row][col] in agent:
+                    center_pieces += 1
+
         back_pieces = 0
         if self.current_state[0][1] in agent:
             back_pieces += 1
@@ -356,32 +356,34 @@ class CheckersStates:
         if self.current_state[7][6] not in human:
             back_pieces += 1
 
-        return {"agents": agent_pieces, "humans": human_pieces, "kingA": agent_kings, "kingH": human_kings, "back": back_pieces}
+        return {"agents": agent_pieces, "humans": human_pieces, "kingA": agent_kings, "kingH": human_kings, "center": center_pieces, "back": back_pieces}
 
     def computeUtility(self):
         pieces = self.countPieces()
 
         num_pieces = pieces["agents"] - pieces["humans"]
         king_pieces = pieces["kingA"] - pieces["kingH"]
+        center_pieces = pieces["center"]
         back_pieces = pieces["back"]
 
-        return ((num_pieces * 100) + (king_pieces * 50) + (back_pieces * 5)) * 100
+        return ((num_pieces * 100) + (king_pieces * 50) + (back_pieces * 10) + (center_pieces * 5)) * 100
 
     def computeEvaluation(self):
         pieces = self.countPieces()
 
         num_pieces = pieces["agents"] - pieces["humans"]
         king_pieces = pieces["kingA"] - pieces["kingH"]
+        center_pieces = pieces["center"]
         back_pieces = pieces["back"]
 
-        return ((num_pieces * 100) + (king_pieces * 50) + (back_pieces * 5)) * 5
+        return ((num_pieces * 100) + (king_pieces * 50) + (back_pieces * 10) + (center_pieces * 5)) * 5
 
     def checkTerminal(self):
         pieces = self.countPieces()
 
-        if not self.checkMoves("HUMAN") or not self.checkMoves("AGENT"):
+        if pieces["humans"] == 0 or pieces["agents"] == 0:
             return True
-        elif pieces["humans"] == 0 or pieces["agents"] == 0:
+        elif not self.checkMoves("HUMAN") or not self.checkMoves("AGENT"):
             return True
         return False
 
@@ -665,7 +667,7 @@ if __name__ == "__main__":
     try:
         option_num = ""
         while option_num != "1" and option_num != "2":
-            print("[1] With Move Ordering\n[2] Without Move Ordering\n")
+            print("[1] Without Move Ordering\n[2] With Move Ordering\n")
             option_num = input("Move Ordering Option:\t")
             if option_num != "1" and option_num != "2":
                 print("\nInvalid Key!\nPlease Select an Option:\n")
@@ -673,9 +675,9 @@ if __name__ == "__main__":
                 print("Invalid Key!\nPlease Select an Option:\n")
 
         if int(option_num) == 1:
-            move_file = open("moves_move_order.txt", "w")
-        else:
             move_file = open("moves_without.txt", "w")
+        else:
+            move_file = open("moves_move_order.txt", "w")
 
         print("\nPlease Enter [S] to Start...\n")
         key_input = ""
@@ -754,25 +756,25 @@ if __name__ == "__main__":
                 time.sleep(2)
                 human_turn = True
             os.system("cls" if os.name == "nt" else "clear")
-
-        print("\n\n")
-        print("=" * 90, end="\n")
-        print(" " * 38, " GAME ENDED ", " " * 38)
-        print("=" * 90, end="\n")
-
-        gameStats = game.endGame()
-        print("\n\n")
-        print("-" * 38, " STATISTICS ", "-" * 38, end="\n")
-        print("Number of Agent Pieces Remaining: ", gameStats["Agent"])
-        print("Number of Human Pieces Remaining: ", gameStats["Human"], end="\n\n")
-
-        if gameStats["Winner"] != "Draw":
-            winner = " " + gameStats["Winner"] + " won! "
-        else:
-            winner = " " + gameStats["Winner"] + " between Agent and Human! "
-        print(" " * int((90 - len(winner)) / 2), winner, " " * int((90 - len(winner)) / 2))
-        print("-" * 90, end="\n\n")
-
-        print(" " * 29, "Thank you for playing Checkers!", " " * 30)
     except KeyboardInterrupt:
-        print("\n\nThank you for playing Checkers!")
+        pass
+
+    print("\n\n")
+    print("=" * 90, end="\n")
+    print(" " * 38, " GAME ENDED ", " " * 38)
+    print("=" * 90, end="\n")
+
+    gameStats = game.endGame()
+    print("\n\n")
+    print("-" * 38, " STATISTICS ", "-" * 38, end="\n")
+    print("Number of Agent Pieces Remaining: ", gameStats["Agent"])
+    print("Number of Human Pieces Remaining: ", gameStats["Human"], end="\n\n")
+
+    if gameStats["Winner"] != "Draw":
+        winner = " " + gameStats["Winner"] + " won! "
+    else:
+        winner = " " + gameStats["Winner"] + " between Agent and Human! "
+    print(" " * int((90 - len(winner)) / 2), winner, " " * int((90 - len(winner)) / 2))
+    print("-" * 90, end="\n\n")
+
+    print(" " * 29, "Thank you for playing Checkers!", " " * 30)
