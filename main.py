@@ -1,4 +1,4 @@
-import math, os, time, random, copy
+import math, os, time, copy
 
 
 class SortMoves:
@@ -8,9 +8,16 @@ class SortMoves:
     def addMove(self, move, value):
         self.sortedMoves.append([move, value])
 
-    def getMoves(self):
+    def getMaxMoves(self):
         ordered = []
         self.sortedMoves = sorted(self.sortedMoves, key=lambda x: x[1], reverse=True)
+        for x in self.sortedMoves:
+            ordered.append(x[0])
+        return ordered
+
+    def getMinMoves(self):
+        ordered = []
+        self.sortedMoves = sorted(self.sortedMoves, key=lambda x: x[1])
         for x in self.sortedMoves:
             ordered.append(x[0])
         return ordered
@@ -54,21 +61,6 @@ class Checkers:
                         row_content.append("     ")
             self.grid_content.append(row_content)
 
-    def tempGrid(self):
-        for row in range(8):
-            row_content = []
-            for column in range(8):
-                row_content.append("     ")
-            self.grid_content.append(row_content)
-        self.grid_content[0][4] = "AGENT"
-        self.grid_content[1][3] = "HUMAN"
-        self.grid_content[3][1] = "HUMAN"
-        self.grid_content[3][3] = "HUMAN"
-        self.grid_content[3][5] = "HUMAN"
-        self.grid_content[5][1] = "HUMAN"
-        self.grid_content[5][3] = "HUMAN"
-        self.grid_content[5][5] = "HUMAN"
-
     def gameContinue(self):
         state = CheckersStates(self.grid_content)
         state.printBoard()
@@ -110,22 +102,12 @@ class Checkers:
     def agentTurn(self):
         state = CheckersStates(self.grid_content)
         copy_state = copy.deepcopy(self.grid_content)
-        # """
         agent_move = self.alphaBeta(state)
         self.grid_content = copy_state
         state.current_state = copy_state
         print(agent_move)
         state.updateLocation(agent_move[0], agent_move[1])
         self.grid_content = state.current_state
-        """
-        possMoves = state.getStates("HUMAN")
-        possible_states = possMoves["possibleMoves"]
-        self.grid_content = copy_state
-        agent_move = possible_states[random.randrange(len(possible_states))]
-        print(agent_move)
-        state.updateLocation(agent_move[0], agent_move[1])
-        self.grid_content = state.current_state
-        # """
 
     def orderingOption(self, num):
         if num == 1 or num == 2:
@@ -138,16 +120,8 @@ class Checkers:
         return False
 
     def alphaBeta(self, state):
-        human_pieces = 0
-        agent_pieces = 0
-        for row in range(len(self.grid_content)):
-            for col in range(len(self.grid_content[row])):
-                if self.grid_content[row][col] == "HUMAN" or self.grid_content[row][col] == "KingH":
-                    human_pieces += 1
-                elif self.grid_content[row][col] == "AGENT" or self.grid_content[row][col] == "KingA":
-                    agent_pieces += 1
-
-        self.depthLimit = abs((agent_pieces - human_pieces)) + 2
+        pieces = state.countPieces()
+        self.depthLimit = abs((pieces["agents"] - pieces["humans"])) + 2
         self.numNodes = 0
         self.maxPruning = 0
         self.minPruning = 0
@@ -176,15 +150,12 @@ class Checkers:
         return self.agent_move
 
     def maxValue(self, state, alpha, beta, depthLimit):
-        if state.checkTerminal():
+        if state.checkTerminal() or depthLimit == 0:
             return state.computeUtility()
-        if depthLimit == 0:
-            return state.computeEvaluation()
 
         self.numNodes += 1
         v = -math.inf
-        possMoves = state.getStates("AGENT")
-        possibleMoves = possMoves["possibleMoves"]
+        possibleMoves = state.getStates("AGENT")["possibleMoves"]
         for a in possibleMoves:
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(a[0], a[1])
@@ -203,15 +174,12 @@ class Checkers:
         return v
 
     def minValue(self, state, alpha, beta, depthLimit):
-        if state.checkTerminal():
+        if state.checkTerminal() or depthLimit == 0:
             return state.computeUtility()
-        if depthLimit == 0:
-            return state.computeEvaluation()
 
         self.numNodes += 1
         v = math.inf
-        possMoves = state.getStates("HUMAN")
-        possibleMoves = possMoves["possibleMoves"]
+        possibleMoves = state.getStates("AGENT")["possibleMoves"]
         for a in possibleMoves:
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(a[0], a[1])
@@ -228,33 +196,28 @@ class Checkers:
         return v
 
     def maxMoveOrder(self, state, alpha, beta, depthLimit):
-        if state.checkTerminal():
+        if state.checkTerminal() or depthLimit == 0:
             return state.computeUtility()
-        if depthLimit == 0:
-            return state.computeEvaluation()
 
-        possMoves = state.getStates("AGENT")
-        possibleMoves = possMoves["possibleMoves"]
+        possibleMoves = state.getStates("AGENT")["possibleMoves"]
         sortMoves = SortMoves()
-
         for x in possibleMoves:
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(x[0], x[1])
 
-            # """
             if hash(tuple(x)) in self.cache.moveOrderCache:
                 cacheValue = self.cache.getValue(hash(tuple(x)))
                 value = cacheValue["value"]
             else:
-                value = state.computeEvaluation()
-            # """
+                value = state.computeUtility()
 
             state.current_state = copy.deepcopy(copy_state)
             sortMoves.addMove(x, value)
 
         self.numNodes += 1
         v = -math.inf
-        for a in sortMoves.getMoves():
+        sortedPossible = sortMoves.getMaxMoves()
+        for a in sortedPossible:
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(a[0], a[1])
             v2 = self.minMoveOrder(state, alpha, beta, depthLimit - 1)
@@ -274,32 +237,28 @@ class Checkers:
         return v
 
     def minMoveOrder(self, state, alpha, beta, depthLimit):
-        if state.checkTerminal():
+        if state.checkTerminal() or depthLimit == 0:
             return state.computeUtility()
-        if depthLimit == 0:
-            return state.computeEvaluation()
 
-        possMoves = state.getStates("HUMAN")
-        possibleMoves = possMoves["possibleMoves"]
+        possibleMoves = state.getStates("HUMAN")["possibleMoves"]
         sortMoves = SortMoves()
         for x in possibleMoves:
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(x[0], x[1])
 
-            # """
             if hash(tuple(x)) in self.cache.moveOrderCache:
                 cacheValue = self.cache.getValue(hash(tuple(x)))
                 value = cacheValue["value"]
             else:
-                value = state.computeEvaluation()
-            # """
+                value = state.computeUtility()
 
             state.current_state = copy.deepcopy(copy_state)
             sortMoves.addMove(x, value)
 
         self.numNodes += 1
         v = math.inf
-        for a in sortMoves.getMoves():
+        sortedPossible = sortMoves.getMinMoves()
+        for a in sortedPossible:
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(a[0], a[1])
             v2 = self.maxMoveOrder(state, alpha, beta, depthLimit - 1)
@@ -307,8 +266,6 @@ class Checkers:
             if v2 < v:
                 v = v2
                 beta = min(beta, v)
-                if depthLimit == self.depthLimit - 1:
-                    self.human_move = a
             if v <= alpha:
                 pruned = len(possibleMoves) - possibleMoves.index(a)
                 self.minPruning += pruned
@@ -325,12 +282,6 @@ class CheckersStates:
         agent = ("AGENT", "KingA")
         human = ("HUMAN", "KingH")
 
-        agent_kings = 0
-        human_kings = 0
-        for row in self.current_state:
-            agent_kings += row.count("KingA")
-            human_kings += row.count("KingH")
-
         human_pieces = 0
         agent_pieces = 0
         for row in range(len(self.current_state)):
@@ -340,11 +291,21 @@ class CheckersStates:
                 elif self.current_state[row][col] in agent:
                     agent_pieces += 1
 
-        center_pieces = 0
-        for row in range(1, len(self.current_state)):
-            for col in range(1, len(self.current_state[row])):
-                if self.current_state[row][col] in agent:
-                    center_pieces += 1
+        return {"agents": agent_pieces, "humans": human_pieces}
+
+    def computeUtility(self):
+        pieces = self.countPieces()
+        num_pieces = pieces["agents"] - pieces["humans"]
+
+        agent = ("AGENT", "KingA")
+        human = ("HUMAN", "KingH")
+
+        agent_kings = 0
+        human_kings = 0
+        for row in self.current_state:
+            agent_kings += row.count("KingA")
+            human_kings += row.count("KingH")
+        king_pieces = agent_kings - human_kings
 
         back_pieces = 0
         if self.current_state[0][1] in agent:
@@ -356,27 +317,13 @@ class CheckersStates:
         if self.current_state[7][6] not in human:
             back_pieces += 1
 
-        return {"agents": agent_pieces, "humans": human_pieces, "kingA": agent_kings, "kingH": human_kings, "center": center_pieces, "back": back_pieces}
+        center_pieces = 0
+        for row in range(1, len(self.current_state)):
+            for col in range(1, len(self.current_state[row])):
+                if self.current_state[row][col] in agent:
+                    center_pieces += 1
 
-    def computeUtility(self):
-        pieces = self.countPieces()
-
-        num_pieces = pieces["agents"] - pieces["humans"]
-        king_pieces = pieces["kingA"] - pieces["kingH"]
-        center_pieces = pieces["center"]
-        back_pieces = pieces["back"]
-
-        return ((num_pieces * 100) + (king_pieces * 50) + (back_pieces * 10) + (center_pieces * 5)) * 100
-
-    def computeEvaluation(self):
-        pieces = self.countPieces()
-
-        num_pieces = pieces["agents"] - pieces["humans"]
-        king_pieces = pieces["kingA"] - pieces["kingH"]
-        center_pieces = pieces["center"]
-        back_pieces = pieces["back"]
-
-        return ((num_pieces * 100) + (king_pieces * 50) + (back_pieces * 10) + (center_pieces * 5)) * 5
+        return (num_pieces * 100) + (king_pieces * 50) + (back_pieces * 10) + (center_pieces * 5)
 
     def checkTerminal(self):
         pieces = self.countPieces()
@@ -741,7 +688,7 @@ if __name__ == "__main__":
                                     move_formatted = chr(curr_move[0] + 65) + str(curr_move[1] + 1)
                                     moves_print += "\t" + move_formatted
 
-                                print(piece_print, "\t|", moves_print, file=move_file)
+                                print(f"[{user_move}]\t{piece_print}\t|\t{moves_print}", file=move_file)
                                 human_turn = False
                                 valid_move = True
                         else:
