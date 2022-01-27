@@ -179,7 +179,7 @@ class Checkers:
 
         self.numNodes += 1
         v = math.inf
-        possibleMoves = state.getStates("AGENT")["possibleMoves"]
+        possibleMoves = state.getStates("HUMAN")["possibleMoves"]
         for a in possibleMoves:
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(a[0], a[1])
