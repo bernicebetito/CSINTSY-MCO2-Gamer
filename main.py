@@ -1,3 +1,6 @@
+# Bernice Marie M. Betito - CSINTSYS13
+# MCO2: Casual Gamer
+
 import math, os, time, copy
 
 
@@ -112,7 +115,7 @@ class Checkers:
             return True
         return False
 
-    def alphaBeta(self, state, turn="ALPHA"):
+    def alphaBeta(self, state):
         pieces = state.countPieces()
         self.depthLimit = abs((pieces["agents"] - pieces["humans"])) + 2
 
@@ -122,22 +125,16 @@ class Checkers:
         self.agent_move = []
         self.human_move = []
 
-        if turn == "ALPHA":
-            start_time = time.time()
-            if self.moveOrderOption == 1:
-                v = self.maxValue(state, -math.inf, math.inf, self.depthLimit)
-            else:
-                v = self.maxMoveOrder(state, -math.inf, math.inf, self.depthLimit)
-            end_time = time.time()
-            total_time = end_time - start_time
-
-            self.total_depth += self.depthLimit
-            print(f"{total_time}\t{self.numNodes}\t{self.totalNodes}", file=self.stats_file)
+        start_time = time.time()
+        if self.moveOrderOption == 1:
+            v = self.maxValue(state, -math.inf, math.inf, self.depthLimit)
         else:
-            if self.moveOrderOption == 1:
-                self.minValue(state, -math.inf, math.inf, self.depthLimit)
-            else:
-                self.minMoveOrder(state, -math.inf, math.inf, self.depthLimit)
+            v = self.maxMoveOrder(state, -math.inf, math.inf, self.depthLimit)
+        end_time = time.time()
+        total_time = end_time - start_time
+
+        self.total_depth += self.depthLimit
+        print(f"{total_time}\t{self.numNodes}\t{self.totalNodes}", file=self.stats_file)
 
     def maxValue(self, state, alpha, beta, depthLimit):
         if state.checkTerminal() or depthLimit == 0:
@@ -669,12 +666,7 @@ if __name__ == "__main__":
                 user_move = "1"
                 valid_move = False
                 while not valid_move:
-                    # user_move = input("Enter Option Number:\t")
-                    # """
-                    curr_move = ["1", "1", "1", "5", "2", "2", "2", "2", "3", "3", "2", "5", "5", "5", "1", "1", "1",
-                                 "2", "2", "2", "1", "1", "3", "1", "1", "1", "3", "1", "1", "1", "1", "1", "1"]
-                    user_move = curr_move[curr_index]
-                    # """
+                    user_move = input("Enter Option Number:\t")
 
                     if user_move.lower() == "exit":
                         game_continue = False
