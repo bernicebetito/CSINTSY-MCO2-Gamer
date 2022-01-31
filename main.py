@@ -5,14 +5,14 @@ class SortMoves:
     def __init__(self):
         self.sortedMoves = []
 
-    def addMove(self, move, value):
-        self.sortedMoves.append([move, value])
+    def addMove(self, num, move, value):
+        self.sortedMoves.append([num, move, value])
 
     def getMoves(self, reverse):
         ordered = []
-        self.sortedMoves = sorted(self.sortedMoves, key=lambda x: x[1], reverse=reverse)
+        self.sortedMoves = sorted(self.sortedMoves, key=lambda x: x[2], reverse=reverse)
         for x in self.sortedMoves:
-            ordered.append(x[0])
+            ordered.append(x[1])
         return ordered
 
 
@@ -81,20 +81,6 @@ class Checkers:
         copy_state = copy.deepcopy(self.grid_content)
         states = CheckersStates(self.grid_content)
         possible_states = states.getStates("HUMAN")
-        # """
-        alpha_beta = self.alphaBeta(states, "HUMAN")["possibleMoves"]
-
-        for curr_piece in range(len(alpha_beta)):
-            piece_formatted = chr(alpha_beta[curr_piece][0][0] + 65) + str(
-                alpha_beta[curr_piece][0][1] + 1)
-            print("[{}]    {:<2}   | ".format(possible_states["possibleMoves"].index(alpha_beta[curr_piece]) + 1, piece_formatted), end="")
-
-            for curr_move in alpha_beta[curr_piece][1]:
-                move_formatted = chr(curr_move[0] + 65) + str(curr_move[1] + 1)
-                print("   {:<2} ".format(move_formatted), end="")
-            print()
-        print()
-        # """
         self.grid_content = copy_state
         return possible_states
 
@@ -110,11 +96,10 @@ class Checkers:
     def agentTurn(self):
         state = CheckersStates(self.grid_content)
         copy_state = copy.deepcopy(self.grid_content)
-        agent_move = self.alphaBeta(state, "AGENT")
+        self.alphaBeta(state)
         self.grid_content = copy_state
         state.current_state = copy_state
-        # print(agent_move)
-        state.updateLocation(agent_move[0], agent_move[1])
+        state.updateLocation(self.agent_move[0], self.agent_move[1])
         self.grid_content = state.current_state
 
     def orderingOption(self, num):
@@ -127,61 +112,32 @@ class Checkers:
             return True
         return False
 
-    def alphaBeta(self, state, turn):
+    def alphaBeta(self, state, turn="ALPHA"):
         pieces = state.countPieces()
-        # self.depthLimit = abs((pieces["agents"] - pieces["humans"])) + 2
-        depths = [x * 2 for x in range(1, 6)]
-        print(depths)
-        for i in depths:
-            self.depthLimit = i
+        self.depthLimit = abs((pieces["agents"] - pieces["humans"])) + 2
 
-            self.numNodes = 0
-            self.totalMaxNodes = 0
-            self.totalMinNodes = 0
-            self.avg_branching = 0
-            self.branching_ctr = 0
+        self.numNodes = 0
+        self.totalNodes = 0
 
-            self.maxPruning = 0
-            self.minPruning = 0
+        self.agent_move = []
+        self.human_move = []
 
-            self.agent_move = []
-            self.human_move = []
-            self.typeHuman = ""
-
-            if turn == "AGENT":
-                print("Starting:\t", i)
-                start_time = time.time()
-                if self.moveOrderOption == 1:
-                    v = self.maxValue(state, -math.inf, math.inf, self.depthLimit)
-                else:
-                    v = self.maxMoveOrder(state, -math.inf, math.inf, self.depthLimit)
-                end_time = time.time()
-                total_time = end_time - start_time
-                print("Ending:\t", i, end="\n\n")
-                print(f"Average:\t{self.avg_branching / self.branching_ctr}")
-
-                """
-                print("depth: ", self.depthLimit)
-                print("v: ", str(v))
-                print("nodes: ", self.numNodes)
-                print("max pruning: ", self.maxPruning)
-                print("min pruning: ", self.minPruning)
-                print("total time: ", total_time)
-                # """
-
-                self.total_depth += self.depthLimit
-                totalNodes = self.totalMaxNodes + self.totalMinNodes
-                print(f"{total_time}\t{v}\t{self.numNodes}\t{totalNodes}\t{self.maxPruning + self.minPruning}\t{self.maxPruning}\t{self.totalMaxNodes}\t{self.minPruning}\t{self.totalMinNodes}", file=self.stats_file)
-
-                # return self.agent_move
+        if turn == "ALPHA":
+            start_time = time.time()
+            if self.moveOrderOption == 1:
+                v = self.maxValue(state, -math.inf, math.inf, self.depthLimit)
             else:
-                if self.moveOrderOption == 1:
-                    v = self.minValue(state, -math.inf, math.inf, self.depthLimit)
-                else:
-                    v = self.minMoveOrder(state, -math.inf, math.inf, self.depthLimit)
+                v = self.maxMoveOrder(state, -math.inf, math.inf, self.depthLimit)
+            end_time = time.time()
+            total_time = end_time - start_time
 
-                # return {"possibleMoves": self.human_move, "typeMove": self.typeHuman}
-        return self.agent_move
+            self.total_depth += self.depthLimit
+            print(f"{total_time}\t{self.numNodes}\t{self.totalNodes}", file=self.stats_file)
+        else:
+            if self.moveOrderOption == 1:
+                self.minValue(state, -math.inf, math.inf, self.depthLimit)
+            else:
+                self.minMoveOrder(state, -math.inf, math.inf, self.depthLimit)
 
     def maxValue(self, state, alpha, beta, depthLimit):
         if state.checkTerminal() or depthLimit == 0:
@@ -189,10 +145,8 @@ class Checkers:
 
         v = -math.inf
         possibleMoves = state.getStates("AGENT")["possibleMoves"]
-        self.avg_branching += len(possibleMoves)
-        self.branching_ctr += 1
         if depthLimit == 1:
-            self.totalMaxNodes += len(possibleMoves)
+            self.totalNodes += len(possibleMoves)
             self.numNodes += len(possibleMoves)
         for a in possibleMoves:
             copy_state = copy.deepcopy(state.current_state)
@@ -207,7 +161,6 @@ class Checkers:
             if v >= beta:
                 if depthLimit == 1:
                     pruned = len(possibleMoves) - possibleMoves.index(a)
-                    self.maxPruning += pruned
                     self.numNodes -= pruned
                 return v
 
@@ -219,12 +172,8 @@ class Checkers:
 
         v = math.inf
         possibleMoves = state.getStates("HUMAN")["possibleMoves"]
-        self.avg_branching += len(possibleMoves)
-        self.branching_ctr += 1
-
-        typeMove = state.getStates("HUMAN")["typeMove"]
         if depthLimit == 1:
-            self.totalMinNodes += len(possibleMoves)
+            self.totalNodes += len(possibleMoves)
             self.numNodes += len(possibleMoves)
         for a in possibleMoves:
             copy_state = copy.deepcopy(state.current_state)
@@ -235,16 +184,11 @@ class Checkers:
                 v = v2
                 beta = min(beta, v)
                 if depthLimit == self.depthLimit:
-                    if possibleMoves == [((0, 5), ((1, 6),)), ((3, 6), ((2, 5),)), ((4, 5), ((3, 4),)), ((7, 0), ((6, 1),))]:
-                        print(possibleMoves)
-                        self.human_move = possibleMoves
-                    else:
-                        self.human_move.append(a)
-                    self.typeHuman = typeMove
+                    self.human_move = []
+                    self.human_move.append(a)
             if v <= alpha:
                 if depthLimit == 1:
                     pruned = len(possibleMoves) - possibleMoves.index(a)
-                    self.minPruning += pruned
                     self.numNodes -= pruned
                 return v
 
@@ -256,23 +200,22 @@ class Checkers:
 
         possibleMoves = state.getStates("AGENT")["possibleMoves"]
         sortMoves = SortMoves()
-        for x in possibleMoves:
-            copy_state = copy.deepcopy(state.current_state)
-            state.updateLocation(x[0], x[1])
 
+        ctr = len(possibleMoves)
+        for x in possibleMoves:
             if hash(tuple(x)) in self.cache.moveOrderCache:
                 cacheValue = self.cache.getValue(hash(tuple(x)))
                 value = cacheValue["value"]
             else:
-                value = state.computeUtility()
+                value = -math.inf
 
-            state.current_state = copy.deepcopy(copy_state)
-            sortMoves.addMove(x, value)
+            sortMoves.addMove(ctr, x, value)
+            ctr -= 1
 
         v = -math.inf
         sortedPossible = sortMoves.getMoves(True)
         if depthLimit == 1:
-            self.totalMaxNodes += len(sortedPossible)
+            self.totalNodes += len(sortedPossible)
             self.numNodes += len(sortedPossible)
         for a in sortedPossible:
             copy_state = copy.deepcopy(state.current_state)
@@ -288,7 +231,6 @@ class Checkers:
             if v >= beta:
                 if depthLimit == 1:
                     pruned = len(sortedPossible) - sortedPossible.index(a)
-                    self.maxPruning += pruned
                     self.numNodes -= pruned
                 return v
 
@@ -300,26 +242,24 @@ class Checkers:
             return state.computeUtility()
 
         possibleMoves = state.getStates("HUMAN")["possibleMoves"]
-        typeMove = state.getStates("HUMAN")["typeMove"]
         sortMoves = SortMoves()
-        for x in possibleMoves:
-            copy_state = copy.deepcopy(state.current_state)
-            state.updateLocation(x[0], x[1])
 
+        ctr = 0
+        for x in possibleMoves:
             if hash(tuple(x)) in self.cache.moveOrderCache:
                 cacheValue = self.cache.getValue(hash(tuple(x)))
                 value = cacheValue["value"]
             else:
-                value = state.computeUtility()
+                value = -math.inf
 
-            state.current_state = copy.deepcopy(copy_state)
-            sortMoves.addMove(x, value)
+            sortMoves.addMove(ctr, x, value)
+            ctr += 1
 
-        self.numNodes += 1
         v = math.inf
         sortedPossible = sortMoves.getMoves(False)
         if depthLimit == 1:
-            self.totalMinNodes += len(sortedPossible)
+            self.totalNodes += len(possibleMoves)
+            self.numNodes += len(possibleMoves)
         for a in sortedPossible:
             copy_state = copy.deepcopy(state.current_state)
             state.updateLocation(a[0], a[1])
@@ -329,19 +269,12 @@ class Checkers:
                 v = v2
                 beta = min(beta, v)
                 if depthLimit == self.depthLimit:
-                    if sortedPossible == [((3, 2), ((2, 1),)), ((3, 2), ((2, 3),)), ((3, 2), ((4, 1),)), ((4, 3), ((3, 4),)), ((6, 7), ((5, 6),)), ((7, 0), ((6, 1),))]:
-                        print(sortedPossible)
-                        self.human_move = sortedPossible
-                    elif sortedPossible == [((7, 2), ((6, 1),)), ((7, 2), ((6, 3),)), ((7, 0), ((6, 1),))] or sortedPossible == [((7, 2), ((6, 1),)), ((7, 2), ((6, 3),)), ((5, 0), ((4, 1),))]:
-                        print(sortedPossible)
-                        self.human_move = sortedPossible
-                    else:
-                        self.human_move.append(a)
-                    self.typeHuman = typeMove
+                    self.human_move = []
+                    self.human_move.append(a)
             if v <= alpha:
                 if depthLimit == 1:
                     pruned = len(sortedPossible) - sortedPossible.index(a)
-                    self.minPruning += pruned
+                    self.numNodes -= pruned
                 return v
 
         return v
@@ -736,24 +669,11 @@ if __name__ == "__main__":
                 user_move = "1"
                 valid_move = False
                 while not valid_move:
-                    """
-                    Without
-                    curr_move = ["1", "1", "1", "5", "2", "2", "2", "2", "3", "3", "2", "5", "5", "5", "1", "1", "1",
-                                 "2", "2", "2", "1", "1", "3", "1", "1", "1", "3", "1", "1", "1", "1", "2", "3", "5",
-                                 "3", "1", "2"]
-                    
-                    With
-                    curr_move = ["1", "1", "1", "5", "2", "2", "2", "4", "2", "6", "1", "1", "2", "1", "1", "1", "2",
-                                 "1", "2", "1", "1", "1", "2", "1", "2", "1", "2", "1", "2", "3", "4", "3", "4", "3",
-                                 "1", "3", "1", "1", "1", "2", "3", "1"]
-                    
+                    # user_move = input("Enter Option Number:\t")
                     # """
-                    curr_move = ["1", "1", "1", "5", "2", "2", "2", "4", "2", "6", "1", "1", "2", "1", "1", "1", "2",
-                                 "1", "2", "1", "1", "1", "2", "1", "2", "1", "2", "1", "2", "3", "4", "3", "4", "3",
-                                 "1", "3", "1", "1", "1", "2", "3", "1"]
+                    curr_move = ["1", "1", "1", "5", "2", "2", "2", "2", "3", "3", "2", "5", "5", "5", "1", "1", "1",
+                                 "2", "2", "2", "1", "1", "3", "1", "1", "1", "3", "1", "1", "1", "1", "1", "1"]
                     user_move = curr_move[curr_index]
-                    """
-                    user_move = input("Enter Option Number:\t")
                     # """
 
                     if user_move.lower() == "exit":
@@ -791,11 +711,9 @@ if __name__ == "__main__":
                             input()
                             print("\nInvalid Option Number! Please enter a Valid Option Number.\n")
             else:
-                # print("\nAgent's Turn...\n")
-                # time.sleep(1)
+                print("\nAgent's Turn...\n")
                 game.agentTurn()
                 game_continue = False
-                # time.sleep(2)
                 human_turn = True
             os.system("cls" if os.name == "nt" else "clear")
     except KeyboardInterrupt:
